@@ -51,7 +51,7 @@ except ImportError:
 FIELDS = [
     "map", "config", "trial",
     "success", "collided", "timed_out",
-    "T_f", "L", "v_mean", "v_max", "S_J", "d_min",
+    "T_f", "L", "v_mean", "v_max", "v_cmd_max","v_cmd_axis_max", "S_J", "j_rms", "dacc_mean", "dacc_max", "d_min",
     "N_replan", "N_fail",
     "t_fe_mean", "t_fe_max", "t_be_mean", "t_be_max", "t_be_p95",
     "start_x", "start_y", "goal_x", "goal_y",
@@ -72,7 +72,7 @@ class MetricLogger(object):
         self.goal_tol   = float(rospy.get_param("~goal_tol", 0.6))
         self.uav_radius = float(rospy.get_param("~uav_radius", 0.2))
         self.goal_delay = float(rospy.get_param("~goal_delay", 4.0))
-
+        self.v_cmd_axis_max = 0.0
         self.lock = threading.Lock()
         self.finished = False
 
@@ -94,6 +94,9 @@ class MetricLogger(object):
         self.prev_acc   = None
         self.prev_acc_t = None
         self.jerk_sq_int = 0.0
+        self.prev_tid    = None
+        self.joint_jumps = []
+        self.v_cmd_max   = 0.0
 
         self.t_fe_list  = []
         self.t_be_list  = []
@@ -192,13 +195,29 @@ class MetricLogger(object):
             a = np.array([msg.acceleration.x,
                           msg.acceleration.y,
                           msg.acceleration.z])
+            tid = msg.trajectory_id
+            vc = float(np.linalg.norm([msg.velocity.x,
+                                       msg.velocity.y,
+                                       msg.velocity.z]))
+            va = max(abs(msg.velocity.x), abs(msg.velocity.y), abs(msg.velocity.z))
+            if va > self.v_cmd_axis_max:
+                self.v_cmd_axis_max = va                           
+            if vc > self.v_cmd_max:
+                self.v_cmd_max = vc
             if self.prev_acc is not None:
                 dt = t - self.prev_acc_t
                 if 1e-4 < dt < 0.2:
-                    j = (a - self.prev_acc) / dt
-                    self.jerk_sq_int += float(np.dot(j, j)) * dt
-            self.prev_acc = a
+                    if tid == self.prev_tid:
+                        # cùng một quỹ đạo: jerk thật, cộng vào S_J
+                        j = (a - self.prev_acc) / dt
+                        self.jerk_sq_int += float(np.dot(j, j)) * dt
+                    else:
+                        # mối nối giữa hai quỹ đạo: ghi riêng, không cộng vào S_J
+                        self.joint_jumps.append(
+                            float(np.linalg.norm(a - self.prev_acc)))
+            self.prev_acc   = a
             self.prev_acc_t = t
+            self.prev_tid   = tid
 
     # ------------------------------------------------------------------
     def cb_timing(self, msg):
@@ -261,6 +280,8 @@ class MetricLogger(object):
         v = np.array(self.v_list) if self.v_list else np.array([0.0])
         fe = np.array(self.t_fe_list) if self.t_fe_list else np.array([0.0])
         be = np.array(self.t_be_list) if self.t_be_list else np.array([0.0])
+        dacc  = np.array(self.joint_jumps) if self.joint_jumps else np.array([0.0])
+        j_rms = math.sqrt(self.jerk_sq_int / T_f) if T_f > 1e-6 else 0.0
 
         row = {
             "map": self.map_name,
@@ -273,7 +294,12 @@ class MetricLogger(object):
             "L": round(self.path_len, 3),
             "v_mean": round(float(v.mean()), 3),
             "v_max": round(float(v.max()), 3),
+            "v_cmd_max": round(self.v_cmd_max, 3),
+            "v_cmd_axis_max": round(self.v_cmd_axis_max, 3),
             "S_J": round(self.jerk_sq_int, 3),
+            "j_rms": round(j_rms, 3),
+            "dacc_mean": round(float(dacc.mean()), 3),
+            "dacc_max": round(float(dacc.max()), 3),
             "d_min": round(self.d_min, 4) if math.isfinite(self.d_min) else "",
             "N_replan": self.n_replan,
             "N_fail": self.n_fail,

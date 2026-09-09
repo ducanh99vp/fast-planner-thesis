@@ -36,8 +36,11 @@ DEFAULT_OUT = os.path.expanduser(
 METRICS = [
     ("T_f",       "Thời gian bay (s)"),
     ("L",         "Độ dài quỹ đạo (m)"),
-    ("v_mean",    "Vận tốc TB (m/s)"),
-    ("S_J",       "Độ mượt S_J"),
+    ("v_mean",         "Vận tốc TB (m/s)"),
+    ("v_cmd_axis_max", "Vận tốc lệnh cực đại theo trục (m/s)"),
+    ("S_J",       "Độ mượt S_J (đã loại mối nối)"),
+    ("j_rms",     "Jerk hiệu dụng (m/s³)"),
+    ("dacc_max",  "Gián đoạn mối nối lớn nhất (m/s²)"),
     ("d_min",     "Khoảng cách an toàn min (m)"),
     ("t_fe_mean", "Thời gian front-end (ms)"),
     ("t_be_mean", "Thời gian back-end (ms)"),
