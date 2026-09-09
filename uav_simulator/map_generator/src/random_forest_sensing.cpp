@@ -303,6 +303,14 @@ int main(int argc, char** argv) {
   n.param("ObstacleShape/theta", theta_, 7.0);
 
   n.param("sensing/radius", _sensing_range, 10.0);
+  int _map_seed;
+  n.param("ObstacleShape/seed", _map_seed, -1);
+  if (_map_seed >= 0) {
+    eng.seed(_map_seed);
+    ROS_WARN("[random_forest] seed co dinh = %d", _map_seed);
+  } else {
+    ROS_WARN("[random_forest] seed ngau nhien");
+  }
   n.param("sensing/radius", _sense_rate, 10.0);
 
   _x_l = -_x_size / 2.0;

@@ -26,6 +26,7 @@
 // #include <fstream>
 #include <plan_manage/planner_manager.h>
 #include <thread>
+#include <std_msgs/Float64MultiArray.h>
 
 namespace fast_planner {
 
@@ -37,7 +38,7 @@ FastPlannerManager::~FastPlannerManager() { std::cout << "des manager" << std::e
 
 void FastPlannerManager::initPlanModules(ros::NodeHandle& nh) {
   /* read algorithm parameters */
-
+  timing_pub_ = nh.advertise<std_msgs::Float64MultiArray>("/benchmark/timing", 20);  
   nh.param("manager/max_vel", pp_.max_vel_, -1.0);
   nh.param("manager/max_acc", pp_.max_acc_, -1.0);
   nh.param("manager/max_jerk", pp_.max_jerk_, -1.0);
@@ -86,6 +87,14 @@ void FastPlannerManager::initPlanModules(ros::NodeHandle& nh) {
     topo_prm_->setEnvironment(edt_environment_);
     topo_prm_->init(nh);
   }
+}
+
+void FastPlannerManager::publishTiming(double t_fe_ms, double t_be_ms, bool ok) {
+  std_msgs::Float64MultiArray m;
+  m.data.push_back(t_fe_ms);
+  m.data.push_back(t_be_ms);
+  m.data.push_back(ok ? 1.0 : 0.0);
+  timing_pub_.publish(m);
 }
 
 void FastPlannerManager::setGlobalWaypoints(vector<Eigen::Vector3d>& waypoints) {
@@ -164,6 +173,7 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
 
     if (status == KinodynamicAstar::NO_PATH) {
       cout << "[kino replan]: Can't find path." << endl;
+      publishTiming((ros::Time::now() - t1).toSec() * 1000.0, 0.0, false);
       return false;
     } else {
       cout << "[kino replan]: retry search success." << endl;
@@ -239,6 +249,8 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
   pp_.time_search_   = t_search;
   pp_.time_optimize_ = t_opt;
   pp_.time_adjust_   = t_adjust;
+
+  publishTiming(t_search * 1000.0, t_opt * 1000.0, true);
 
   updateTrajInfo();
 

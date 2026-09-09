@@ -1,0 +1,51 @@
+<launch>
+  <!-- ================================================================
+       bench.launch — Mốc M2
+       Một lượt chạy thử nghiệm hoàn chỉnh, không cần RViz, không cần
+       thao tác tay. batch_runner.py gọi file này lặp đi lặp lại.
+
+       Đặt tại: thesis_tools/benchmark_tools/launch/bench.launch
+       ================================================================ -->
+
+  <arg name="map_name" default="M1"/>
+  <arg name="config"   default="B0"/>
+  <arg name="trial"    default="0"/>
+  <arg name="goal_x"   default="5.0"/>
+  <arg name="goal_y"   default="0.0"/>
+  <arg name="out_csv"  default="$(env HOME)/fast_planner_ws/src/Fast-Planner/results/raw/bench.csv"/>
+  <arg name="timeout"  default="120.0"/>
+
+  <!-- Seed cố định cho bản đồ: cùng seed thì cùng bản đồ.
+       Trộn map_name vào seed để mỗi bản đồ khác nhau nhưng vẫn tái lập được. -->
+  <arg name="map_seed" default="20260908"/>
+
+  <!-- Bật đường ống vật cản động. Để 0 ở mốc M2, sẽ dùng từ M4. -->
+  <arg name="dynamic_env" default="0"/>
+
+  <!-- ===== Hệ thống chính ===== -->
+  <!-- Cần đã bổ sung ba tham số map_seed, dynamic_env, flight_type
+       vào kino_replan.launch — xem README-M2.md, Bước 2. -->
+  <include file="$(find plan_manage)/launch/kino_replan.launch">
+    <arg name="map_seed"    value="$(arg map_seed)"/>
+    <arg name="dynamic_env" value="$(arg dynamic_env)"/>
+    <arg name="flight_type" value="1"/>
+  </include>
+
+  <!-- ===== Bộ thu thập chỉ số ===== -->
+  <node pkg="benchmark_tools" type="metric_logger.py" name="metric_logger"
+        output="screen" required="true">
+    <param name="out_csv"    value="$(arg out_csv)"/>
+    <param name="map_name"   value="$(arg map_name)"/>
+    <param name="config"     value="$(arg config)"/>
+    <param name="trial"      value="$(arg trial)"/>
+    <param name="goal_x"     value="$(arg goal_x)"/>
+    <param name="goal_y"     value="$(arg goal_y)"/>
+    <param name="timeout"    value="$(arg timeout)"/>
+    <param name="goal_tol"   value="0.6"/>
+    <param name="uav_radius" value="0.2"/>
+    <!-- Chờ bấy nhiêu giây sau khi bản đồ và odometry sẵn sàng rồi mới
+         phát đích. Để hệ thống ổn định, tránh đo cả giai đoạn khởi động. -->
+    <param name="goal_delay" value="4.0"/>
+  </node>
+
+</launch>

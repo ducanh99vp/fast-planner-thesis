@@ -1,3 +1,10 @@
 fast_planner/.vscode
 .vscode/
 .clang-format
+
+# ===== M0: ket qua chay tho — tai tao duoc, khong commit =====
+results/raw/
+*.bag
+*.log
+__pycache__/
+*.pyc

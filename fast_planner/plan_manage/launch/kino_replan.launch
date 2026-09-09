@@ -1,4 +1,7 @@
 <launch>
+  <arg name="map_seed"    default="20260908"/>
+  <arg name="dynamic_env" default="0"/>
+  <arg name="flight_type" default="1"/>
   <!-- size of map, change the size in x, y, z according to your application -->
   <arg name="map_size_x" value="40.0"/>
   <arg name="map_size_y" value="20.0"/>
@@ -37,7 +40,7 @@
 
     <!-- 1: use 2D Nav Goal to select goal  -->
     <!-- 2: use global waypoints below  -->
-    <arg name="flight_type" value="1" />
+    <arg name="flight_type" value="$(arg flight_type)" />
     
     <!-- global waypoints -->
     <!-- If flight_type is set to 2, the drone will travel these waypoints one by one -->
@@ -82,6 +85,7 @@
     <arg name="p_num" value="150"/>
 
     <arg name="odometry_topic" value="$(arg odom_topic)" />
+    <arg name="map_seed" value="$(arg map_seed)"/>
   </include>
 
 </launch>
