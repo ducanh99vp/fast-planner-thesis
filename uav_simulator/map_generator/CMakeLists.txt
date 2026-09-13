@@ -29,3 +29,13 @@ add_executable (random_forest src/random_forest_sensing.cpp )
 target_link_libraries(random_forest
   ${catkin_LIBRARIES}
   ${PCL_LIBRARIES})
+
+add_executable (indoor_map_generator src/indoor_map_generator.cpp)
+target_link_libraries(indoor_map_generator
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES})
+
+add_executable (map_publisher src/map_publisher.cpp)
+target_link_libraries(map_publisher
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES})

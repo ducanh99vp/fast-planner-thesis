@@ -8,3 +8,4 @@ results/raw/
 *.log
 __pycache__/
 *.pyc
+uav_simulator/map_generator/maps/*.pcd

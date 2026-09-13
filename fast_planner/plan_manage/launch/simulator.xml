@@ -1,8 +1,10 @@
 <launch>
   <arg name="map_seed" default="-1"/>
-  <arg name="init_x" value="-19.0"/>
-  <arg name="init_y" value="-0.0"/>
-  <arg name="init_z" value="1.0"/> 
+  <arg name="use_pcd"  default="false"/>
+  <arg name="map_file" default=""/>
+  <arg name="init_x" default="-6.0"/>
+  <arg name="init_y" default="0.0"/>
+  <arg name="init_z" default="1.0"/>
   <arg name="obj_num" value="1" />
   <arg name="map_size_x_"/>
   <arg name="map_size_y_"/>
@@ -11,7 +13,8 @@
   <arg name="p_num"/>
   <arg name="odometry_topic"/>
 
-  <node pkg ="map_generator" name ="random_forest" type ="random_forest" output = "screen">    
+  <group unless="$(arg use_pcd)">
+    <node pkg ="map_generator" name ="random_forest" type ="random_forest" output = "screen">    
     <remap from="~odometry"   to="$(arg odometry_topic)"/>    
     <param name="init_state_x"   value="$(arg init_x)"/>
     <param name="init_state_y"   value="$(arg init_y)"/>
@@ -37,7 +40,15 @@
     <param name="sensing/radius" value="5.0"/>        
     <param name="sensing/rate"   value="10.0"/>        
   </node>
+  </group>
 
+  <group if="$(arg use_pcd)">
+    <node pkg="map_generator" name="map_publisher" type="map_publisher" output="screen">
+      <param name="map_file" value="$(arg map_file)"/>
+      <param name="rate"     value="10.0"/>
+    </node>
+  </group>
+  
   <node pkg="so3_quadrotor_simulator" type="quadrotor_simulator_so3" name="quadrotor_simulator_so3" output="screen">
         <param name="rate/odom" value="200.0"/>
         <param name="simulator/init_state_x" value="$(arg init_x)"/>

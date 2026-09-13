@@ -51,7 +51,7 @@ except ImportError:
 FIELDS = [
     "map", "config", "trial",
     "success", "collided", "timed_out",
-    "T_f", "L", "v_mean", "v_max", "v_cmd_max","v_cmd_axis_max", "S_J", "j_rms", "dacc_mean", "dacc_max", "d_min",
+    "T_f", "L", "v_mean", "v_max", "v_cmd_max","v_cmd_axis_max", "S_J", "j_rms", "dacc_mean", "dacc_max", "d_min", "d_min_cmd",
     "N_replan", "N_fail",
     "t_fe_mean", "t_fe_max", "t_be_mean", "t_be_max", "t_be_p95",
     "start_x", "start_y", "goal_x", "goal_y",
@@ -87,6 +87,7 @@ class MetricLogger(object):
         self.path_len   = 0.0
         self.v_list     = []
         self.d_min      = float("inf")
+        self.d_min_cmd  = float("inf")
         self.n_odom     = 0
         self.start_pos  = None
         self.last_pos   = None
@@ -204,6 +205,13 @@ class MetricLogger(object):
                 self.v_cmd_axis_max = va                           
             if vc > self.v_cmd_max:
                 self.v_cmd_max = vc
+            # khoang cach tu VI TRI LENH toi ban do that — cung KD-tree voi d_min
+            if self.kdtree is not None:
+                pc = np.array([msg.position.x, msg.position.y, msg.position.z])
+                dc, _ = self.kdtree.query(pc.reshape(1, 3), k=1)
+                dc = float(dc[0])
+                if dc < self.d_min_cmd:
+                    self.d_min_cmd = dc
             if self.prev_acc is not None:
                 dt = t - self.prev_acc_t
                 if 1e-4 < dt < 0.2:
@@ -301,6 +309,7 @@ class MetricLogger(object):
             "dacc_mean": round(float(dacc.mean()), 3),
             "dacc_max": round(float(dacc.max()), 3),
             "d_min": round(self.d_min, 4) if math.isfinite(self.d_min) else "",
+            "d_min_cmd": round(self.d_min_cmd, 4) if math.isfinite(self.d_min_cmd) else "",
             "N_replan": self.n_replan,
             "N_fail": self.n_fail,
             "t_fe_mean": round(float(fe.mean()), 3),
