@@ -38,6 +38,8 @@ void KinoReplanFSM::init(ros::NodeHandle& nh) {
   nh.param("fsm/flight_type", target_type_, -1);
   nh.param("fsm/thresh_replan", replan_thresh_, -1.0);
   nh.param("fsm/thresh_no_replan", no_replan_thresh_, -1.0);
+  nh.param("fsm/takeoff_height", takeoff_height_, -1.0);  // [Luan van - M3]
+  takeoff_planned_ = false;
 
   nh.param("fsm/waypoint_num", waypoint_num_, -1);
   for (int i = 0; i < waypoint_num_; i++) {
@@ -85,7 +87,7 @@ void KinoReplanFSM::waypointCallback(const nav_msgs::PathConstPtr& msg) {
   have_target_ = true;
 
   if (exec_state_ == WAIT_TARGET)
-    changeFSMExecState(GEN_NEW_TRAJ, "TRIG");
+    changeFSMExecState(needTakeoff() ? TAKEOFF : GEN_NEW_TRAJ, "TRIG");  // [Luan van - M3]
   else if (exec_state_ == EXEC_TRAJ)
     changeFSMExecState(REPLAN_TRAJ, "TRIG");
 }
@@ -108,14 +110,14 @@ void KinoReplanFSM::odometryCallback(const nav_msgs::OdometryConstPtr& msg) {
 }
 
 void KinoReplanFSM::changeFSMExecState(FSM_EXEC_STATE new_state, string pos_call) {
-  string state_str[5] = { "INIT", "WAIT_TARGET", "GEN_NEW_TRAJ", "REPLAN_TRAJ", "EXEC_TRAJ" };
+  string state_str[7] = { "INIT", "WAIT_TARGET", "GEN_NEW_TRAJ", "REPLAN_TRAJ", "EXEC_TRAJ", "REPLAN_NEW", "TAKEOFF" };
   int    pre_s        = int(exec_state_);
   exec_state_         = new_state;
   cout << "[" + pos_call + "]: from " + state_str[pre_s] + " to " + state_str[int(new_state)] << endl;
 }
 
 void KinoReplanFSM::printFSMExecState() {
-  string state_str[5] = { "INIT", "WAIT_TARGET", "GEN_NEW_TRAJ", "REPLAN_TRAJ", "EXEC_TRAJ" };
+  string state_str[7] = { "INIT", "WAIT_TARGET", "GEN_NEW_TRAJ", "REPLAN_TRAJ", "EXEC_TRAJ", "REPLAN_NEW", "TAKEOFF" };
 
   cout << "[FSM]: state: " + state_str[int(exec_state_)] << endl;
 }
@@ -146,7 +148,7 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
       if (!have_target_)
         return;
       else {
-        changeFSMExecState(GEN_NEW_TRAJ, "FSM");
+        changeFSMExecState(needTakeoff() ? TAKEOFF : GEN_NEW_TRAJ, "FSM");  // [Luan van - M3]
       }
       break;
     }
@@ -224,10 +226,34 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
       }
       break;
     }
+
+    // [Luan van - M3] Cat canh thang dung len takeoff_height_ roi moi lap ke hoach toi dich.
+    case TAKEOFF: {
+      if (!takeoff_planned_) {
+        if (!planTakeoffTraj()) {  // da o du cao: bo qua pha cat canh
+          changeFSMExecState(GEN_NEW_TRAJ, "TAKEOFF");
+          break;
+        }
+        takeoff_planned_ = true;
+        cout << "[FSM]: takeoff to z = " << takeoff_height_ << endl;
+        break;
+      }
+      LocalTrajData* info    = &planner_manager_->local_data_;
+      double         t_cur   = (ros::Time::now() - info->start_time_).toSec();
+      bool           reached = fabs(odom_pos_(2) - takeoff_height_) < 0.1 && odom_vel_.norm() < 0.2;
+      if (reached) {
+        takeoff_planned_ = false;
+        changeFSMExecState(GEN_NEW_TRAJ, "TAKEOFF");
+      } else if (t_cur > info->duration_ + 3.0) {
+        takeoff_planned_ = false;  // quy dao da het ma chua toi do cao: dung lai quy dao cat canh
+      }
+      break;
+    }
   }
 }
 
 void KinoReplanFSM::checkCollisionCallback(const ros::TimerEvent& e) {
+  if (exec_state_ == TAKEOFF) return;  // [Luan van - M3] khong replan/doi dich trong luc cat canh
   LocalTrajData* info = &planner_manager_->local_data_;
 
   if (have_target_) {
@@ -313,39 +339,10 @@ bool KinoReplanFSM::callKinodynamicReplan() {
 
     planner_manager_->planYaw(start_yaw_);
 
-    auto info = &planner_manager_->local_data_;
-
-    /* publish traj */
-    plan_manage::Bspline bspline;
-    bspline.order      = 3;
-    bspline.start_time = info->start_time_;
-    bspline.traj_id    = info->traj_id_;
-
-    Eigen::MatrixXd pos_pts = info->position_traj_.getControlPoint();
-
-    for (int i = 0; i < pos_pts.rows(); ++i) {
-      geometry_msgs::Point pt;
-      pt.x = pos_pts(i, 0);
-      pt.y = pos_pts(i, 1);
-      pt.z = pos_pts(i, 2);
-      bspline.pos_pts.push_back(pt);
-    }
-
-    Eigen::VectorXd knots = info->position_traj_.getKnot();
-    for (int i = 0; i < knots.rows(); ++i) {
-      bspline.knots.push_back(knots(i));
-    }
-
-    Eigen::MatrixXd yaw_pts = info->yaw_traj_.getControlPoint();
-    for (int i = 0; i < yaw_pts.rows(); ++i) {
-      double yaw = yaw_pts(i, 0);
-      bspline.yaw_pts.push_back(yaw);
-    }
-    bspline.yaw_dt = info->yaw_traj_.getInterval();
-
-    bspline_pub_.publish(bspline);
+    publishLocalTraj();
 
     /* visulization */
+    auto info = &planner_manager_->local_data_;
     auto plan_data = &planner_manager_->plan_data_;
     visualization_->drawGeometricPath(plan_data->kino_path_, 0.075, Eigen::Vector4d(1, 1, 0, 0.4));
     visualization_->drawBspline(info->position_traj_, 0.1, Eigen::Vector4d(1.0, 0, 0.0, 1), true, 0.2,
@@ -359,5 +356,92 @@ bool KinoReplanFSM::callKinodynamicReplan() {
   }
 }
 
+// [Luan van - M3] Tach tu callKinodynamicReplan() de pha cat canh dung chung.
+void KinoReplanFSM::publishLocalTraj() {
+  auto info = &planner_manager_->local_data_;
+
+  /* publish traj */
+  plan_manage::Bspline bspline;
+  bspline.order      = 3;
+  bspline.start_time = info->start_time_;
+  bspline.traj_id    = info->traj_id_;
+
+  Eigen::MatrixXd pos_pts = info->position_traj_.getControlPoint();
+
+  for (int i = 0; i < pos_pts.rows(); ++i) {
+    geometry_msgs::Point pt;
+    pt.x = pos_pts(i, 0);
+    pt.y = pos_pts(i, 1);
+    pt.z = pos_pts(i, 2);
+    bspline.pos_pts.push_back(pt);
+  }
+
+  Eigen::VectorXd knots = info->position_traj_.getKnot();
+  for (int i = 0; i < knots.rows(); ++i) {
+    bspline.knots.push_back(knots(i));
+  }
+
+  Eigen::MatrixXd yaw_pts = info->yaw_traj_.getControlPoint();
+  for (int i = 0; i < yaw_pts.rows(); ++i) {
+    double yaw = yaw_pts(i, 0);
+    bspline.yaw_pts.push_back(yaw);
+  }
+  bspline.yaw_dt = info->yaw_traj_.getInterval();
+
+  bspline_pub_.publish(bspline);
+}
+
+// [Luan van - M3] Quy dao cat canh thang dung, dung truc tiep bang B-spline, KHONG qua A*/toi uu.
+// Ly do: san ban do nam o z = 0; UAV dang dau tren san nam trong o vat can da phinh nen
+// kinodynamic A* khong mo rong duoc nut nao (NO_PATH).
+bool KinoReplanFSM::planTakeoffTraj() {
+  const double dz = takeoff_height_ - odom_pos_(2);
+  if (dz <= 0.0) return false;
+
+  // Profile bac 5 s(tau) = 10tau^3 - 15tau^4 + 6tau^5: van toc, gia toc dau/cuoi = 0.
+  // v_dinh = 1.875 dz/T, a_dinh = 5.7735 dz/T^2; gioi han bang mot nua max_vel/max_acc.
+  auto&        pp = planner_manager_->pp_;
+  const double T  = max(1.875 * dz / (0.5 * pp.max_vel_), sqrt(5.7735 * dz / (0.5 * pp.max_acc_)));
+  const int    n  = max(3, int(ceil(T / 0.1)));
+  const double dt = T / n;
+
+  vector<Eigen::Vector3d> pts;
+  vector<Eigen::Vector3d> derivs(4, Eigen::Vector3d::Zero());  // v0, v1, a0, a1
+  for (int i = 0; i <= n; ++i) {
+    double s = double(i) / n;
+    pts.push_back(odom_pos_ + Eigen::Vector3d(0, 0, dz * s * s * s * (10.0 - 15.0 * s + 6.0 * s * s)));
+  }
+  Eigen::MatrixXd ctrl_pts;
+  NonUniformBspline::parameterizeToBspline(dt, pts, derivs, ctrl_pts);
+
+  // Cap nhat local_data_ nhu FastPlannerManager::updateTrajInfo() (ham do la private)
+  LocalTrajData* info      = &planner_manager_->local_data_;
+  info->start_time_        = ros::Time::now();
+  info->position_traj_     = NonUniformBspline(ctrl_pts, 3, dt);
+  info->velocity_traj_     = info->position_traj_.getDerivative();
+  info->acceleration_traj_ = info->velocity_traj_.getDerivative();
+  info->start_pos_         = info->position_traj_.evaluateDeBoorT(0.0);
+  info->duration_          = info->position_traj_.getTimeSum();
+  info->traj_id_ += 1;
+
+  // Yaw giu nguyen huong hien tai
+  Eigen::Vector3d rot_x   = odom_orient_.toRotationMatrix().block(0, 0, 3, 1);
+  int             seg_num = max(1, int(ceil(info->duration_ / 0.3)));
+  Eigen::MatrixXd yaw     = Eigen::MatrixXd::Constant(seg_num + 3, 1, atan2(rot_x(1), rot_x(0)));
+  info->yaw_traj_.setUniformBspline(yaw, 3, info->duration_ / seg_num);
+  info->yawdot_traj_    = info->yaw_traj_.getDerivative();
+  info->yawdotdot_traj_ = info->yawdot_traj_.getDerivative();
+
+  publishLocalTraj();
+  visualization_->drawBspline(info->position_traj_, 0.1, Eigen::Vector4d(1.0, 0, 0.0, 1), true, 0.2,
+                              Eigen::Vector4d(1, 0, 0, 1));
+  return true;
+}
+
 // KinoReplanFSM::
+// [Luan van - M3] Can cat canh neu pha cat canh duoc bat va UAV dang thap hon do cao cat canh.
+bool KinoReplanFSM::needTakeoff() {
+  return takeoff_height_ > 0.0 && odom_pos_(2) < takeoff_height_ - 0.15;
+}
+
 }  // namespace fast_planner

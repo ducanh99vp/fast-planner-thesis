@@ -22,6 +22,8 @@
   <arg name="w_time"         default="10.0"/>
   <arg name="lambda2"        default="5.0"/>
   <arg name="dist0"          default="0.4"/>
+  <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
+  <arg name="takeoff_height"       default="-1.0"/>
 
   <arg name="point_num"/>
   <arg name="point0_x"/>
@@ -51,6 +53,7 @@
     <param name="fsm/flight_type" value="$(arg flight_type)" type="int"/>
     <param name="fsm/thresh_replan" value="1.5" type="double"/>
     <param name="fsm/thresh_no_replan" value="2.0" type="double"/>
+    <param name="fsm/takeoff_height" value="$(arg takeoff_height)" type="double"/>
 
     <param name="fsm/waypoint_num" value="$(arg point_num)" type="int"/>
     <param name="fsm/waypoint0_x" value="$(arg point0_x)" type="double"/>
@@ -124,7 +127,7 @@
     <param name="search/max_vel" value="$(arg max_vel)" type="double"/>
     <param name="search/max_acc" value="$(arg max_acc)" type="double"/>
     <param name="search/w_time" value="$(arg w_time)" type="double"/>
-    <param name="search/horizon" value="7.0" type="double"/>
+    <param name="search/horizon" value="4.5" type="double"/>
     <param name="search/lambda_heu" value="5.0" type="double"/>
     <param name="search/resolution_astar" value="0.1" type="double"/>
     <param name="search/time_resolution" value="0.8" type="double"/>

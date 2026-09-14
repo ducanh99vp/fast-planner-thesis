@@ -63,7 +63,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Group
       Displays:
-        - Alpha: 1
+        - Alpha: 0.2
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
             Max Value: 1.89999998

@@ -12,6 +12,8 @@
   <arg name="w_time"         default="10.0"/>
   <arg name="lambda2"        default="5.0"/>
   <arg name="dist0"          default="0.4"/>
+  <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
+  <arg name="takeoff_height"       default="-1.0"/>
   <!-- size of map, change the size in x, y, z according to your application -->
   <arg name="map_size_x" default="15.0"/>
   <arg name="map_size_y" default="10.0"/>
@@ -77,6 +79,7 @@
     <arg name="w_time"         value="$(arg w_time)"/>
     <arg name="lambda2"        value="$(arg lambda2)"/>
     <arg name="dist0"          value="$(arg dist0)"/>
+    <arg name="takeoff_height"       value="$(arg takeoff_height)"/>
   </include>
 
   <!-- trajectory server -->

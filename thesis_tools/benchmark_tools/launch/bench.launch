@@ -41,6 +41,8 @@
   <arg name="w_time"         default="10.0"/>
   <arg name="lambda2"        default="5.0"/>
   <arg name="dist0"          default="0.4"/>
+  <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
+  <arg name="takeoff_height"       default="-1.0"/>
 
   <!-- ===== Hệ thống chính ===== -->
   <!-- Cần đã bổ sung ba tham số map_seed, dynamic_env, flight_type
@@ -64,6 +66,7 @@
     <arg name="w_time"         value="$(arg w_time)"/>
     <arg name="lambda2"        value="$(arg lambda2)"/>
     <arg name="dist0"          value="$(arg dist0)"/>
+    <arg name="takeoff_height"       value="$(arg takeoff_height)"/>
 
     <arg name="use_pcd"  value="$(arg use_pcd)"/>
     <arg name="map_file" value="$(arg map_file)"/>
@@ -84,6 +87,7 @@
     <!-- Chờ bấy nhiêu giây sau khi bản đồ và odometry sẵn sàng rồi mới
          phát đích. Để hệ thống ổn định, tránh đo cả giai đoạn khởi động. -->
     <param name="goal_delay" value="4.0"/>
+    <param name="takeoff_height" value="$(arg takeoff_height)"/>
   </node>
 
 </launch>

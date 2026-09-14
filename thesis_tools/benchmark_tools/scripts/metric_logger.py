@@ -51,7 +51,7 @@ except ImportError:
 FIELDS = [
     "map", "config", "trial",
     "success", "collided", "timed_out",
-    "T_f", "L", "v_mean", "v_max", "v_cmd_max","v_cmd_axis_max", "S_J", "j_rms", "dacc_mean", "dacc_max", "d_min", "d_min_cmd",
+    "T_f", "L", "v_mean", "v_max", "v_cmd_max","v_cmd_axis_max", "S_J", "j_rms", "dacc_mean", "dacc_max", "d_min", "d_min_cmd", "z_min_flight",
     "N_replan", "N_fail",
     "t_fe_mean", "t_fe_max", "t_be_mean", "t_be_max", "t_be_p95",
     "start_x", "start_y", "goal_x", "goal_y",
@@ -72,6 +72,8 @@ class MetricLogger(object):
         self.goal_tol   = float(rospy.get_param("~goal_tol", 0.6))
         self.uav_radius = float(rospy.get_param("~uav_radius", 0.2))
         self.goal_delay = float(rospy.get_param("~goal_delay", 4.0))
+        # [Luan van - M3] do cao cat canh (<= 0: tat); truoc khi cat canh xong khong xet va cham
+        self.takeoff_h  = float(rospy.get_param("~takeoff_height", -1.0))
         self.v_cmd_axis_max = 0.0
         self.lock = threading.Lock()
         self.finished = False
@@ -88,6 +90,8 @@ class MetricLogger(object):
         self.v_list     = []
         self.d_min      = float("inf")
         self.d_min_cmd  = float("inf")
+        self.airborne     = False   # [Luan van - M3] da cat canh xong chua
+        self.z_min_flight = float("inf")
         self.n_odom     = 0
         self.start_pos  = None
         self.last_pos   = None
@@ -169,8 +173,15 @@ class MetricLogger(object):
             self.prev_pos = p
             self.v_list.append(float(np.linalg.norm(v)))
 
+            # [Luan van - M3] san ban do o z = 0: UAV dang dau/cat canh luon "cham" san, nen chi
+            # xet va cham va do cao sau khi da len toi takeoff_height - 0.1
+            if not self.airborne and (self.takeoff_h <= 0 or p[2] >= self.takeoff_h - 0.1):
+                self.airborne = True
+            if self.airborne:
+                self.z_min_flight = min(self.z_min_flight, float(p[2]))
+
             # khoảng cách tới vật cản gần nhất, lấy mẫu thưa cho nhẹ
-            if self.kdtree is not None and self.n_odom % 3 == 0:
+            if self.kdtree is not None and self.airborne and self.n_odom % 3 == 0:
                 d, _ = self.kdtree.query(p.reshape(1, 3), k=1)
                 d = float(d[0])
                 if d < self.d_min:
@@ -206,7 +217,8 @@ class MetricLogger(object):
             if vc > self.v_cmd_max:
                 self.v_cmd_max = vc
             # khoang cach tu VI TRI LENH toi ban do that — cung KD-tree voi d_min
-            if self.kdtree is not None:
+            # [Luan van - M3] bo qua luc dang cat canh (lenh con sat san z = 0)
+            if self.kdtree is not None and self.airborne:
                 pc = np.array([msg.position.x, msg.position.y, msg.position.z])
                 dc, _ = self.kdtree.query(pc.reshape(1, 3), k=1)
                 dc = float(dc[0])
@@ -310,6 +322,7 @@ class MetricLogger(object):
             "dacc_max": round(float(dacc.max()), 3),
             "d_min": round(self.d_min, 4) if math.isfinite(self.d_min) else "",
             "d_min_cmd": round(self.d_min_cmd, 4) if math.isfinite(self.d_min_cmd) else "",
+            "z_min_flight": round(self.z_min_flight, 3) if math.isfinite(self.z_min_flight) else "",
             "N_replan": self.n_replan,
             "N_fail": self.n_fail,
             "t_fe_mean": round(float(fe.mean()), 3),
@@ -329,6 +342,14 @@ class MetricLogger(object):
         if d and not os.path.isdir(d):
             os.makedirs(d)
         new_file = not os.path.isfile(self.out_csv)
+        # [Luan van - M3] chan lech cot am tham: tieu de CSV cu phai trung FIELDS
+        if not new_file:
+            with open(self.out_csv, newline="") as fcsv:
+                old = fcsv.readline().strip().split(",")
+            if old != FIELDS:
+                rospy.logfatal("[metric_logger] Tieu de CSV cu khong khop FIELDS - hay xoa %s", self.out_csv)
+                rospy.signal_shutdown("lech luoc do CSV")
+                return
         with open(self.out_csv, "a", newline="") as f:
             w = csv.DictWriter(f, fieldnames=FIELDS)
             if new_file:

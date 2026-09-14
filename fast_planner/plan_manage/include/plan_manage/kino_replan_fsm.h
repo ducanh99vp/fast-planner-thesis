@@ -73,7 +73,7 @@ class KinoReplanFSM {
 
 private:
   /* ---------- flag ---------- */
-  enum FSM_EXEC_STATE { INIT, WAIT_TARGET, GEN_NEW_TRAJ, REPLAN_TRAJ, EXEC_TRAJ, REPLAN_NEW };
+  enum FSM_EXEC_STATE { INIT, WAIT_TARGET, GEN_NEW_TRAJ, REPLAN_TRAJ, EXEC_TRAJ, REPLAN_NEW, TAKEOFF };
   enum TARGET_TYPE { MANUAL_TARGET = 1, PRESET_TARGET = 2, REFENCE_PATH = 3 };
 
   /* planning utils */
@@ -83,11 +83,13 @@ private:
   /* parameters */
   int target_type_;  // 1 mannual select, 2 hard code
   double no_replan_thresh_, replan_thresh_;
+  double takeoff_height_;  // [Luan van - M3] <= 0: tat pha cat canh
   double waypoints_[50][3];
   int waypoint_num_;
 
   /* planning data */
   bool trigger_, have_target_, have_odom_;
+  bool takeoff_planned_;  // [Luan van - M3]
   FSM_EXEC_STATE exec_state_;
 
   Eigen::Vector3d odom_pos_, odom_vel_;  // odometry state
@@ -105,6 +107,9 @@ private:
 
   /* helper functions */
   bool callKinodynamicReplan();        // front-end and back-end method
+  bool planTakeoffTraj();   // [Luan van - M3] quy dao cat canh thang dung, khong qua A*
+  void publishLocalTraj();  // [Luan van - M3] gui local_data_ cho traj_server
+  bool needTakeoff();                                        // [Luan van - M3]
   bool callTopologicalTraj(int step);  // topo path guided gradient-based
                                        // optimization; 1: new, 2: replan
   void changeFSMExecState(FSM_EXEC_STATE new_state, string pos_call);
