@@ -16,13 +16,14 @@
 typedef pcl::PointCloud<pcl::PointXYZ> Cloud;
 
 static double RES = 0.05;   // khoang cach giua hai diem lan can
-
+static const double FLOOR_Z = 0.0;  // san that trung mat dat cua bo mo phong (z = 0)
 // Mot lop diem phang. Cho x0==x1 de duoc mat phang doc theo YZ, v.v.
 void addSlab(Cloud& c, double x0, double x1, double y0, double y1,
-             double z0, double z1) {
-  for (double x = x0; x <= x1 + 1e-9; x += RES)
-    for (double y = y0; y <= y1 + 1e-9; y += RES)
-      for (double z = z0; z <= z1 + 1e-9; z += RES)
+             double z0, double z1, double r = -1.0) {
+  const double s = (r > 0.0) ? r : RES;
+  for (double x = x0; x <= x1 + 1e-9; x += s)
+    for (double y = y0; y <= y1 + 1e-9; y += s)
+      for (double z = z0; z <= z1 + 1e-9; z += s)
         c.points.push_back(pcl::PointXYZ(x, y, z));
 }
 
@@ -40,11 +41,12 @@ void addPillar(Cloud& c, double cx, double cy, double r,
 // Vo phong: san, tran, bon tuong bao.
 void addRoomShell(Cloud& c, double sx, double sy, double sz) {
   double xh = sx / 2.0, yh = sy / 2.0;
-  addSlab(c, -xh, xh, -yh, yh, sz,  sz);     // tran
-  addSlab(c, -xh, -xh, -yh, yh, 0.0, sz);    // tuong x-
-  addSlab(c,  xh,  xh, -yh, yh, 0.0, sz);    // tuong x+
-  addSlab(c, -xh, xh, -yh, -yh, 0.0, sz);    // tuong y-
-  addSlab(c, -xh, xh,  yh,  yh, 0.0, sz);    // tuong y+
+  addSlab(c, -xh, xh, -yh, yh, FLOOR_Z, FLOOR_Z, 0.2);  // san, thua
+  addSlab(c, -xh, xh, -yh, yh, sz, sz, 0.2);            // tran, thua
+  addSlab(c, -xh, -xh, -yh, yh, FLOOR_Z, sz);           // tuong x-
+  addSlab(c,  xh,  xh, -yh, yh, FLOOR_Z, sz);           // tuong x+
+  addSlab(c, -xh, xh, -yh, -yh, FLOOR_Z, sz);           // tuong y-
+  addSlab(c, -xh, xh,  yh,  yh, FLOOR_Z, sz);           // tuong y+
 }
 
 // ---------------- M1: phong don thua, 15x10x3, 8 cot ----------------
@@ -71,9 +73,19 @@ void buildM1(Cloud& c, unsigned seed) {
         { too_close = true; break; }
     if (too_close) continue;
     centers.push_back(std::make_pair(x, y));
-    addPillar(c, x, y, r, 0.0, SZ);
+    addPillar(c, x, y, r, FLOOR_Z, SZ);
     ++placed;
   }
+}
+
+void buildM3(Cloud& c, unsigned /*seed*/) {
+  const double SX = 20.0, SY = 20.0, SZ = 3.0;
+  addRoomShell(c, SX, SY, SZ);
+
+  //addSlab(c, -10.0, 9.0, -9.0, -9.0, 0.0, SZ);   // vach duoi nhanh ngang (ngoai goc)
+  addSlab(c, -10.0, 7.0, -7.0, -7.0, FLOOR_Z, SZ);   // vach tren nhanh ngang (trong goc)
+  //addSlab(c,   9.0, 9.0, -9.0, 10.0, 0.0, SZ);   // vach phai nhanh doc  (ngoai goc)
+  addSlab(c,   7.0, 7.0, -7.0, 10.0, FLOOR_Z, SZ);   // vach trai nhanh doc  (trong goc)
 }
 
 int main(int argc, char** argv) {
@@ -88,6 +100,7 @@ int main(int argc, char** argv) {
 
   Cloud cloud;
   if      (type == "M1") buildM1(cloud, seed);
+  else if (type == "M3") buildM3(cloud, seed);
   else { std::cerr << "Chua cai dat ban do: " << type << "\n"; return 1; }
 
   cloud.width    = cloud.points.size();

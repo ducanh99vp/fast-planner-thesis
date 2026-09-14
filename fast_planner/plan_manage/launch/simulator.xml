@@ -69,7 +69,7 @@
         <remap from="~so3_cmd" to="so3_cmd"/>
         <rosparam file="$(find so3_control)/config/gains_hummingbird.yaml"/>
         <rosparam file="$(find so3_control)/config/corrections_hummingbird.yaml"/>
-        <param name="mass" value="0.74"/>
+        <param name="mass" value="0.98"/>
         <param name="use_angle_corrections " value="false"/>
         <param name="use_external_yaw "      value="false"/>
         <param name="gains/rot/z" value="1.0"/>    

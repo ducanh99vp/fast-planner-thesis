@@ -122,15 +122,20 @@ void renderSensedPoints(const ros::TimerEvent& event) {
     for (size_t i = 0; i < _pointIdxRadiusSearch.size(); ++i) {
       pt = _cloud_all_map.points[_pointIdxRadiusSearch[i]];
 
-      if ((fabs(pt.z - _odom.pose.pose.position.z) / (sensing_horizon)) >
-          tan(M_PI / 12.0))
-        continue;
+      // [Luan van - M3] Bo dai do cao +-1.34 m: neu giu, UAV bay o z=1 khong thay tran
+      // va phan duoi tuong, planner vach duong vong qua dinh/chan tuong.
+      // if ((fabs(pt.z - _odom.pose.pose.position.z) / (sensing_horizon)) >
+      //     tan(M_PI / 12.0))
+      //   continue;
 
       Vector3d pt_vec(pt.x - _odom.pose.pose.position.x,
                       pt.y - _odom.pose.pose.position.y,
                       pt.z - _odom.pose.pose.position.z);
 
-      if (pt_vec.dot(yaw_vec) < 0) continue;
+      // [Luan van - M3] Bo loc nua khong gian phia truoc da tat: cam bien 360 do trong 5 m.
+      // Ly do: ban do cuc bo bi resetBuffer xoa moi chu ky, nen tuong ben hong/sau lung
+      // bien mat khoi ban do va UAV bay xuyen tuong o hanh lang chu L.
+      // if (pt_vec.dot(yaw_vec) < 0) continue;
 
       _local_map.points.push_back(pt);
     }
