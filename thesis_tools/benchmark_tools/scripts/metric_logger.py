@@ -51,7 +51,7 @@ except ImportError:
 FIELDS = [
     "map", "config", "trial",
     "success", "collided", "timed_out",
-    "T_f", "L", "v_mean", "v_max", "v_cmd_max","v_cmd_axis_max", "S_J", "j_rms", "dacc_mean", "dacc_max", "d_min", "d_min_cmd", "z_min_flight",
+    "T_f", "L", "v_mean", "v_max", "v_cmd_max","v_cmd_axis_max", "S_J", "j_rms", "dacc_mean", "dacc_max", "d_min", "d_p5", "d_min_cmd", "z_min_flight",
     "N_replan", "N_fail",
     "t_fe_mean", "t_fe_max", "t_be_mean", "t_be_max", "t_be_p95",
     "start_x", "start_y", "goal_x", "goal_y",
@@ -90,6 +90,7 @@ class MetricLogger(object):
         self.v_list     = []
         self.d_min      = float("inf")
         self.d_min_cmd  = float("inf")
+        self.d_list     = []   # [Luan van - M3] moi khoang cach sau cat canh, de tinh d_p5
         self.airborne     = False   # [Luan van - M3] da cat canh xong chua
         self.z_min_flight = float("inf")
         self.n_odom     = 0
@@ -180,10 +181,13 @@ class MetricLogger(object):
             if self.airborne:
                 self.z_min_flight = min(self.z_min_flight, float(p[2]))
 
-            # khoảng cách tới vật cản gần nhất, lấy mẫu thưa cho nhẹ
-            if self.kdtree is not None and self.airborne and self.n_odom % 3 == 0:
+            # khoảng cách tới vật cản gần nhất
+            # [Luan van - M3] tinh tren MOI mau odom (truoc day moi 3 mau, bo sot ~2 cm o 1.5 m/s)
+            if self.kdtree is not None and self.airborne:
                 d, _ = self.kdtree.query(p.reshape(1, 3), k=1)
                 d = float(d[0])
+                self.d_list.append(d)
+
                 if d < self.d_min:
                     self.d_min = d
                 if d < self.uav_radius:
@@ -321,6 +325,8 @@ class MetricLogger(object):
             "dacc_mean": round(float(dacc.mean()), 3),
             "dacc_max": round(float(dacc.max()), 3),
             "d_min": round(self.d_min, 4) if math.isfinite(self.d_min) else "",
+            # [Luan van - M3] phan vi 5%: 95% thoi gian bay UAV cach vat can it nhat d_p5
+            "d_p5": round(float(np.percentile(self.d_list, 5)), 4) if self.d_list else "",
             "d_min_cmd": round(self.d_min_cmd, 4) if math.isfinite(self.d_min_cmd) else "",
             "z_min_flight": round(self.z_min_flight, 3) if math.isfinite(self.z_min_flight) else "",
             "N_replan": self.n_replan,

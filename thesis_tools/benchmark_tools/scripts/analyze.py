@@ -42,10 +42,13 @@ METRICS = [
     ("j_rms",     "Jerk hiệu dụng (m/s³)"),
     ("dacc_max",  "Gián đoạn mối nối lớn nhất (m/s²)"),
     ("d_min",     "Khoảng cách an toàn min (m)"),
+    ("d_p5",      "Khoảng cách phân vị 5% (m)"),          # [Luan van - M3]
     ("t_fe_mean", "Thời gian front-end (ms)"),
+    ("t_fe_max",  "Front-end cực đại (ms)"),              # [Luan van - M3]
     ("t_be_mean", "Thời gian back-end (ms)"),
     ("t_be_p95",  "Back-end phân vị 95 (ms)"),
     ("N_replan",  "Số lần lập lại"),
+    ("z_min_flight", "Độ cao bay thấp nhất (m)"),         # [Luan van - M3]
 ]
 
 # Bảng màu trung tính, hợp cả in đen trắng
@@ -58,9 +61,14 @@ def load(path):
     df = pd.read_csv(path)
     if df.empty:
         raise SystemExit("File CSV rỗng: %s" % path)
+    # [Luan van - M3] CSV cũ (lược đồ khác) thiếu cột thì dừng, không tổng hợp âm thầm
+    need = ["map", "config", "success", "collided", "timed_out"] + [k for k, _ in METRICS]
+    missing = [k for k in need if k not in df.columns]
+    if missing:
+        raise SystemExit("CSV %s thiếu cột: %s — file sinh từ lược đồ cũ, hãy chạy lại"
+                         % (path, ", ".join(missing)))
     df["d_min"] = pd.to_numeric(df["d_min"], errors="coerce")
     return df
-
 
 def summarize(df, only_success):
     """Trả về DataFrame tổng hợp theo (map, config)."""
@@ -102,7 +110,8 @@ def write_markdown(summary, path):
 
 def write_latex(summary, path):
     labels = {k: v for k, v in METRICS}
-    keys = ["T_f", "L", "S_J", "d_min", "t_be_mean"]     # cột gọn cho bản in
+    # [Luan van - M3] bảng in trong luận văn: SR + 5 chỉ số chính; j_rms thay S_J vì S_J tỷ lệ với T_f
+    keys = ["T_f", "L", "j_rms", "d_min", "t_be_mean"]
     head = ["Bản đồ", "Cấu hình", "SR (\\%)"] + [labels[k].replace("_", "\\_") for k in keys]
     out = ["\\begin{table}[htbp]", "\\centering",
            "\\caption{Kết quả thực nghiệm, trung bình $\\pm$ độ lệch chuẩn trên %d lượt chạy}"
