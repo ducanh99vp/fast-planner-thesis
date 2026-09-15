@@ -12,7 +12,7 @@ Tự tắt là chủ đích: batch_runner.py dựa vào đó để biết lượ
 
 Tham số ROS (đặt trong launch file):
   ~out_csv      đường dẫn file CSV để ghi thêm dòng
-  ~map_name     tên bản đồ, ví dụ M1
+  ~map_name     tên bản đồ, ví dụ I1
   ~config       tên cấu hình thuật toán, ví dụ B0
   ~trial        số thứ tự lượt chạy
   ~goal_x  ~goal_y   toạ độ đích (z luôn bị FSM ép về 1.0)

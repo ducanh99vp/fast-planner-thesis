@@ -7,7 +7,7 @@
        Đặt tại: thesis_tools/benchmark_tools/launch/bench.launch
        ================================================================ -->
 
-  <arg name="map_name" default="M1"/>
+  <arg name="map_name" default="I1"/>
   <arg name="config"   default="B0"/>
   <arg name="trial"    default="0"/>
   <arg name="goal_x"   default="5.0"/>

@@ -14,8 +14,8 @@ Nguyên tắc hoạt động:
      4. Diệt cả nhóm tiến trình, dọn sạch, sang lượt sau
 
 Cách dùng:
-    python3 batch_runner.py --maps M1 M3 --configs B0 --trials 20
-    python3 batch_runner.py --maps M1 --configs B0 --trials 3 --dry-run
+    python3 batch_runner.py --maps I1 I3 --configs B0 --trials 20
+    python3 batch_runner.py --maps I1 --configs B0 --trials 3 --dry-run
 """
 
 import os
@@ -37,8 +37,8 @@ DEFAULT_CSV = os.path.expanduser(
 MAPS_DIR = os.path.expanduser(
     "~/fast_planner_ws/src/Fast-Planner/uav_simulator/map_generator/maps")
 MAPS = {
-    "M1": dict(size=(16.0, 11.0, 4.5), start=(-6.0, 0.0), goals=[(6.0, 0.0)]),
-    "M3": dict(size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),
+    "I1": dict(size=(16.0, 11.0, 4.5), start=(-6.0, 0.0), goals=[(6.0, 0.0)]),
+    "I3": dict(size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),
 }
 # Tham so bay chung cho moi ban do
 FLIGHT_ARGS = ["init_z:=0.0", "takeoff_height:=1.0", "max_vel:=1.5", "max_acc:=1.5"]
@@ -117,7 +117,7 @@ def run_one(map_name, config, trial, goal, out_csv, timeout, extra):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--maps", nargs="+", default=["M1"])
+    ap.add_argument("--maps", nargs="+", default=["I1"])
     ap.add_argument("--configs", nargs="+", default=["B0"])
     ap.add_argument("--trials", type=int, default=20)
     ap.add_argument("--timeout", type=float, default=120.0)

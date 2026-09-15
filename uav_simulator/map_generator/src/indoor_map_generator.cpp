@@ -1,5 +1,5 @@
 // Bo sinh ban do Indoor — cong cu ngoai tuyen, khong can roscore.
-//   rosrun map_generator indoor_map_generator M1 20260910 <duong_dan.pcd> [res]
+//   rosrun map_generator indoor_map_generator I1 20260910 <duong_dan.pcd> [res]
 
 #include <cmath>
 #include <cstdlib>
@@ -49,8 +49,8 @@ void addRoomShell(Cloud& c, double sx, double sy, double sz) {
   addSlab(c, -xh, xh,  yh,  yh, FLOOR_Z, sz);           // tuong y+
 }
 
-// ---------------- M1: phong don thua, 15x10x3, 8 cot ----------------
-void buildM1(Cloud& c, unsigned seed) {
+// ---------------- I1: phong don thua, 15x10x3, 8 cot ----------------
+void buildI1(Cloud& c, unsigned seed) {
   const double SX = 15.0, SY = 10.0, SZ = 3.0;
   addRoomShell(c, SX, SY, SZ);
 
@@ -78,7 +78,7 @@ void buildM1(Cloud& c, unsigned seed) {
   }
 }
 
-void buildM3(Cloud& c, unsigned /*seed*/) {
+void buildI3(Cloud& c, unsigned /*seed*/) {
   const double SX = 20.0, SY = 20.0, SZ = 3.0;
   addRoomShell(c, SX, SY, SZ);
 
@@ -90,7 +90,7 @@ void buildM3(Cloud& c, unsigned /*seed*/) {
 
 int main(int argc, char** argv) {
   if (argc < 4) {
-    std::cerr << "Dung: indoor_map_generator <M1..M5> <seed> <out.pcd> [res]\n";
+    std::cerr << "Dung: indoor_map_generator <I1..I5> <seed> <out.pcd> [res]\n";
     return 1;
   }
   std::string type = argv[1];
@@ -99,8 +99,8 @@ int main(int argc, char** argv) {
   if (argc >= 5) RES = std::atof(argv[4]);
 
   Cloud cloud;
-  if      (type == "M1") buildM1(cloud, seed);
-  else if (type == "M3") buildM3(cloud, seed);
+  if      (type == "I1") buildI1(cloud, seed);
+  else if (type == "I3") buildI3(cloud, seed);
   else { std::cerr << "Chua cai dat ban do: " << type << "\n"; return 1; }
 
   cloud.width    = cloud.points.size();
