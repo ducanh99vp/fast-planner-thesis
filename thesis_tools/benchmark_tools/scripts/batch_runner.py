@@ -30,15 +30,30 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CSV = os.path.expanduser(
     "~/fast_planner_ws/src/Fast-Planner/results/raw/bench.csv")
 
-# Cặp (xuất phát, đích) cho từng bản đồ. Sửa cho khớp bản đồ thật của bạn.
-# Đích luôn ở độ cao 1.0 m vì FSM ép như vậy.
-GOALS = {
-    "M1": [(6.0, 0.0)],
-    "M2": [( 5.0,  0.0), ( 5.0,  3.0), (-5.0,  2.0), ( 4.0, -3.0)],
-    "M3": [( 8.0,  8.0), ( 8.0, -6.0), (-7.0,  7.0)],
-    "M4": [(10.0,  0.0), (10.0,  5.0), (-9.0,  4.0)],
-    "M5": [( 8.0,  5.0), ( 8.0, -4.0), (-7.0,  5.0)],
+# [Luan van - M3] Cau hinh tung ban do Indoor.
+#   size : kich thuoc ban do planner = phong + 1 m theo x, y; z = 4.5 (chua tran 3 m)
+#   start: diem xuat phat tren mat dat (UAV tu cat canh len takeoff_height)
+#   goals: dich cach vat can > 0.5 m VA nam trong vung toi duoc tu start
+MAPS_DIR = os.path.expanduser(
+    "~/fast_planner_ws/src/Fast-Planner/uav_simulator/map_generator/maps")
+MAPS = {
+    "M1": dict(size=(16.0, 11.0, 4.5), start=(-6.0, 0.0), goals=[(6.0, 0.0)]),
+    "M3": dict(size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),
 }
+# Tham so bay chung cho moi ban do
+FLIGHT_ARGS = ["init_z:=0.0", "takeoff_height:=1.0", "max_vel:=1.5", "max_acc:=1.5"]
+
+
+def map_args(map_name):
+    """Tham so roslaunch rieng cua mot ban do Indoor."""
+    m = MAPS[map_name]
+    return ["use_pcd:=true",
+            "map_file:=%s/%s.pcd" % (MAPS_DIR, map_name),
+            "map_size_x:=%.1f" % m["size"][0],
+            "map_size_y:=%.1f" % m["size"][1],
+            "map_size_z:=%.1f" % m["size"][2],
+            "init_x:=%.2f" % m["start"][0],
+            "init_y:=%.2f" % m["start"][1]] + FLIGHT_ARGS
 
 
 def count_rows(path):
@@ -61,7 +76,7 @@ def run_one(map_name, config, trial, goal, out_csv, timeout, extra):
         "goal_y:=%.3f" % goal[1],
         "out_csv:=%s" % out_csv,
         "timeout:=%.1f" % timeout,
-    ] + list(extra)
+    ] + map_args(map_name) + list(extra)   # extra dat cuoi de ghi de duoc
 
     print("  → %s" % " ".join(cmd[2:]))
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
@@ -112,6 +127,12 @@ def main():
     ap.add_argument("--extra", nargs="*", default=[],
                     help="tham số roslaunch bổ sung, ví dụ dynamic_env:=1")
     a = ap.parse_args()
+    
+    for m in a.maps:
+        if m not in MAPS:
+            sys.exit("Ban do %s chua co trong MAPS" % m)
+        if not os.path.isfile("%s/%s.pcd" % (MAPS_DIR, m)):
+            sys.exit("Khong thay file %s/%s.pcd - hay sinh ban do truoc" % (MAPS_DIR, m))
 
     total = len(a.maps) * len(a.configs) * a.trials
     print("=" * 62)
@@ -125,14 +146,15 @@ def main():
         for m in a.maps:
             for c in a.configs:
                 for t in range(a.trials):
-                    g = GOALS.get(m, [(5.0, 0.0)])[t % len(GOALS.get(m, [(5.0, 0.0)]))]
+                    g = MAPS[m]["goals"][t % len(MAPS[m]["goals"])]
                     print("  %s | %s | lượt %2d | đích (%.1f, %.1f)" % (m, c, t, g[0], g[1]))
+                    print("     " + " ".join(map_args(m)))
         return
 
     done, failed = 0, 0
     t0 = time.time()
     for m in a.maps:
-        goals = GOALS.get(m, [(5.0, 0.0)])
+        goals = MAPS[m]["goals"]
         for c in a.configs:
             for t in range(a.trials):
                 done += 1
