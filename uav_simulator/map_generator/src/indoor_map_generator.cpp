@@ -88,6 +88,88 @@ void buildI3(Cloud& c, unsigned /*seed*/) {
   addSlab(c,   7.0, 7.0, -7.0, 10.0, FLOOR_Z, SZ);   // vach trai nhanh doc  (trong goc)
 }
 
+
+// ---------------- I4: bon phong co cua, 25x15x3 ----------------
+static const double WALL_T = 0.20;  // vach ngan day 0.2 m, sinh diem tren hai mat
+static const double DOOR_H = 2.20;  // o cua cao 2.2 m, phia tren van la tuong
+
+typedef std::vector<std::pair<double,double> > Doors;  // (tam, be rong) doc theo vach
+
+// Vach ngan hai mat. along_y = true: vach x = pos chay theo y tu a0 den a1;
+// along_y = false: vach y = pos chay theo x. Toa do doc vach goi la a.
+void addPartition(Cloud& c, bool along_y, double pos, double a0, double a1,
+                  double sz, const Doors& doors) {
+  // doi (a, t, z) sang (x, y, z); t la toa do theo be day vach
+  auto put = [&](double a, double t, double z) {
+    if (along_y) c.points.push_back(pcl::PointXYZ(pos + t, a, z));
+    else         c.points.push_back(pcl::PointXYZ(a, pos + t, z));
+  };
+  int na = (int)std::round((a1 - a0) / RES);
+  int nz = (int)std::round(sz / RES);
+  int nt = (int)std::round(WALL_T / RES);
+  for (int i = 0; i <= na; ++i) {
+    double a = a0 + i * RES;
+    for (int k = 0; k <= nz; ++k) {
+      double z = FLOOR_Z + k * RES;
+      bool in_door = false;
+      for (size_t d = 0; d < doors.size(); ++d)
+        if (std::fabs(a - doors[d].first) < doors[d].second / 2.0 - 1e-6 && z < DOOR_H - 1e-6)
+          in_door = true;
+      if (in_door) continue;
+      put(a, -WALL_T / 2.0, z);
+      put(a,  WALL_T / 2.0, z);
+    }
+  }
+  // bit kin o cua: hai ma cua va mat duoi da cua, khong de ho khe giua hai mat
+  for (size_t d = 0; d < doors.size(); ++d) {
+    double lo = doors[d].first - doors[d].second / 2.0;
+    double hi = doors[d].first + doors[d].second / 2.0;
+    int nw = (int)std::round((hi - lo) / RES);
+    int nh = (int)std::round(DOOR_H / RES);
+    for (int j = 0; j <= nt; ++j) {
+      double t = -WALL_T / 2.0 + j * RES;
+      for (int k = 0; k <= nh; ++k) {
+        put(lo, t, FLOOR_Z + k * RES);
+        put(hi, t, FLOOR_Z + k * RES);
+      }
+      for (int i = 0; i <= nw; ++i) put(lo + i * RES, t, DOOR_H);
+    }
+  }
+}
+
+// Hop do dac (ban, tu): mat tren va bon mat ben, khong day, khong dac ruot.
+void addBox(Cloud& c, double cx, double cy, double sx, double sy, double sz) {
+  double x0 = cx - sx / 2, x1 = cx + sx / 2, y0 = cy - sy / 2, y1 = cy + sy / 2;
+  addSlab(c, x0, x1, y0, y1, FLOOR_Z + sz, FLOOR_Z + sz);  // mat tren
+  addSlab(c, x0, x0, y0, y1, FLOOR_Z, FLOOR_Z + sz);        // mat x-
+  addSlab(c, x1, x1, y0, y1, FLOOR_Z, FLOOR_Z + sz);        // mat x+
+  addSlab(c, x0, x1, y0, y0, FLOOR_Z, FLOOR_Z + sz);        // mat y-
+  addSlab(c, x0, x1, y1, y1, FLOOR_Z, FLOOR_Z + sz);        // mat y+
+}
+
+void buildI4(Cloud& c, unsigned /*seed*/) {
+  const double SX = 25.0, SY = 15.0, SZ = 3.0;
+  addRoomShell(c, SX, SY, SZ);
+
+  // vach doc x = 0: cua A (y = -2.5, 1.4 m), cua B (y = +2.5, 1.2 m)
+  addPartition(c, true,  0.0, -SY / 2, SY / 2, SZ, {{-2.5, 1.4}, {2.5, 1.2}});
+  // vach ngang y = 0: cua C (x = -6, 1.2 m), cua D (x = +6, 0.9 m, hep nhat)
+  addPartition(c, false, 0.0, -SX / 2, SX / 2, SZ, {{-6.0, 1.2}, {6.0, 0.9}});
+
+  // Phan lon do dac cao 1.8-2.2 m de chan that su o do cao bay 1 m;
+  // giu 2 ban thap 0.75 m de con tinh huong bay vuot ben tren.
+  const double furn[][5] = {
+    {-8.5, -4.0, 1.2, 0.8, 1.80}, {-4.5, -2.0, 0.8, 1.6, 2.00},   // phong Tay Nam
+    {-8.0,  3.5, 1.6, 0.8, 0.75}, {-3.5,  5.0, 0.8, 0.8, 2.20},   // phong Tay Bac
+    { 3.5, -4.5, 1.2, 0.8, 1.80}, { 7.5, -2.5, 0.8, 1.6, 2.00},   // phong Dong Nam
+    { 6.0, -5.5, 1.0, 1.0, 2.20},
+    { 3.0,  4.0, 1.6, 0.8, 0.75}, { 8.0,  2.5, 0.8, 1.2, 2.00},   // phong Dong Bac
+  };
+
+  for (const auto& f : furn) addBox(c, f[0], f[1], f[2], f[3], f[4]);
+}
+
+
 int main(int argc, char** argv) {
   if (argc < 4) {
     std::cerr << "Dung: indoor_map_generator <I1..I5> <seed> <out.pcd> [res]\n";
@@ -101,6 +183,7 @@ int main(int argc, char** argv) {
   Cloud cloud;
   if      (type == "I1") buildI1(cloud, seed);
   else if (type == "I3") buildI3(cloud, seed);
+  else if (type == "I4") buildI4(cloud, seed);
   else { std::cerr << "Chua cai dat ban do: " << type << "\n"; return 1; }
 
   cloud.width    = cloud.points.size();

@@ -37,9 +37,15 @@ DEFAULT_CSV = os.path.expanduser(
 MAPS_DIR = os.path.expanduser(
     "~/fast_planner_ws/src/Fast-Planner/uav_simulator/map_generator/maps")
 MAPS = {
-    "I1": dict(size=(16.0, 11.0, 4.5), start=(-6.0, 0.0), goals=[(6.0, 0.0)]),
-    "I3": dict(size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),
+    "I1": dict(pcd="I1", size=(16.0, 11.0, 4.5), start=(-6.0, 0.0), goals=[(6.0, 0.0)]),
+    "I3": dict(pcd="I3", size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),
+    # I4: mot ban do, ba tuyen bay qua ba o cua rong khac nhau.
+    #   R1 qua cua A 1.4 m, R2 qua cua C 1.2 m, R3 qua cua D 0.9 m (hep nhat)
+    "I4-R1": dict(pcd="I4", size=(26.0, 16.0, 4.5), start=(-10.0, -5.0), goals=[(10.0, -5.0)]),
+    "I4-R2": dict(pcd="I4", size=(26.0, 16.0, 4.5), start=(-10.0, -5.0), goals=[(-10.0, 5.0)]),
+    "I4-R3": dict(pcd="I4", size=(26.0, 16.0, 4.5), start=(10.0, -5.0), goals=[(10.0, 5.0)]),
 }
+
 # Tham so bay chung cho moi ban do
 FLIGHT_ARGS = ["init_z:=0.0", "takeoff_height:=1.0", "max_vel:=1.5", "max_acc:=1.5"]
 
@@ -48,7 +54,7 @@ def map_args(map_name):
     """Tham so roslaunch rieng cua mot ban do Indoor."""
     m = MAPS[map_name]
     return ["use_pcd:=true",
-            "map_file:=%s/%s.pcd" % (MAPS_DIR, map_name),
+            "map_file:=%s/%s.pcd" % (MAPS_DIR, m["pcd"]),
             "map_size_x:=%.1f" % m["size"][0],
             "map_size_y:=%.1f" % m["size"][1],
             "map_size_z:=%.1f" % m["size"][2],
@@ -131,8 +137,9 @@ def main():
     for m in a.maps:
         if m not in MAPS:
             sys.exit("Ban do %s chua co trong MAPS" % m)
-        if not os.path.isfile("%s/%s.pcd" % (MAPS_DIR, m)):
-            sys.exit("Khong thay file %s/%s.pcd - hay sinh ban do truoc" % (MAPS_DIR, m))
+        pcd = "%s/%s.pcd" % (MAPS_DIR, MAPS[m]["pcd"])
+        if not os.path.isfile(pcd):
+            sys.exit("Khong thay file %s - hay sinh ban do truoc" % pcd)
 
     total = len(a.maps) * len(a.configs) * a.trials
     print("=" * 62)
