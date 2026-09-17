@@ -50,6 +50,20 @@ MAPS = {
 FLIGHT_ARGS = ["init_z:=0.0", "takeoff_height:=1.0", "max_vel:=1.5", "max_acc:=1.5"]
 
 
+# [Luan van - M3] Hai bo tham so chay so sanh:
+#   P0 — bo mac dinh cua Fast-Planner, hieu chinh cho ngoai troi (van dung cho CD3)
+#   P1 — bo Indoor: o luoi nho hon de khong nuot mat cua hep, vanh dai an toan
+#        phu duoc ban kinh than UAV, nguong phat lui lai de qua duoc cua 0.9 m
+CONFIGS = {
+    "P0": [],
+    # local_range giu 5.5: thu 4.0 (theo lo trinh) thi nho hon search/horizon 4.5,
+    # A* tim vao dai ban do khong duoc duy tri -> lap lai nhieu, j_rms R3 tang 29%
+    "P1": ["map_resolution:=0.05", "inflation:=0.15", "dist0:=0.3",
+           "virtual_ceil:=2.8"],
+
+}
+
+
 def map_args(map_name):
     """Tham so roslaunch rieng cua mot ban do Indoor."""
     m = MAPS[map_name]
@@ -82,7 +96,7 @@ def run_one(map_name, config, trial, goal, out_csv, timeout, extra):
         "goal_y:=%.3f" % goal[1],
         "out_csv:=%s" % out_csv,
         "timeout:=%.1f" % timeout,
-    ] + map_args(map_name) + list(extra)   # extra dat cuoi de ghi de duoc
+    ] + map_args(map_name) + CONFIGS[config] + list(extra)  # extra dat cuoi de ghi de duoc
 
     print("  → %s" % " ".join(cmd[2:]))
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
@@ -124,7 +138,7 @@ def run_one(map_name, config, trial, goal, out_csv, timeout, extra):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--maps", nargs="+", default=["I1"])
-    ap.add_argument("--configs", nargs="+", default=["B0"])
+    ap.add_argument("--configs", nargs="+", default=["P0"])
     ap.add_argument("--trials", type=int, default=20)
     ap.add_argument("--timeout", type=float, default=120.0)
     ap.add_argument("--out", default=DEFAULT_CSV)
@@ -140,6 +154,10 @@ def main():
         pcd = "%s/%s.pcd" % (MAPS_DIR, MAPS[m]["pcd"])
         if not os.path.isfile(pcd):
             sys.exit("Khong thay file %s - hay sinh ban do truoc" % pcd)
+    for c in a.configs:
+        if c not in CONFIGS:
+            sys.exit("Cau hinh %s chua co trong CONFIGS" % c)
+
 
     total = len(a.maps) * len(a.configs) * a.trials
     print("=" * 62)

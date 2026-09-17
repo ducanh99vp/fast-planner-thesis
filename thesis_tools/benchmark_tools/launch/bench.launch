@@ -41,6 +41,10 @@
   <arg name="w_time"         default="10.0"/>
   <arg name="lambda2"        default="5.0"/>
   <arg name="dist0"          default="0.4"/>
+  <arg name="inflation"    default="0.099"/>
+  <arg name="local_range"  default="5.5"/>
+  <arg name="virtual_ceil" default="2.5"/>
+
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
 
@@ -66,6 +70,10 @@
     <arg name="w_time"         value="$(arg w_time)"/>
     <arg name="lambda2"        value="$(arg lambda2)"/>
     <arg name="dist0"          value="$(arg dist0)"/>
+    <arg name="inflation"    value="$(arg inflation)"/>
+    <arg name="local_range"  value="$(arg local_range)"/>
+    <arg name="virtual_ceil" value="$(arg virtual_ceil)"/>
+
     <arg name="takeoff_height"       value="$(arg takeoff_height)"/>
 
     <arg name="use_pcd"  value="$(arg use_pcd)"/>
