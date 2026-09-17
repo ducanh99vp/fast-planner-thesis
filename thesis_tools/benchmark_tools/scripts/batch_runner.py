@@ -60,6 +60,10 @@ CONFIGS = {
     # A* tim vao dai ban do khong duoc duy tri -> lap lai nhieu, j_rms R3 tang 29%
     "P1": ["map_resolution:=0.05", "inflation:=0.15", "dist0:=0.3",
            "virtual_ceil:=2.8"],
+    # P2 — nen cho moi thi nghiem TRONG NHA: mac dinh, chi doi tran ao theo
+    # tran that 3.0 m. Ngoai troi (CD3) dung P0 voi tran ao 2.5.
+    "P2": ["virtual_ceil:=2.8"],
+
 
 }
 
