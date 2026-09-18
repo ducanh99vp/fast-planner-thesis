@@ -51,6 +51,11 @@ METRICS = [
     ("z_min_flight", "Độ cao bay thấp nhất (m)"),         # [Luan van - M3]
 ]
 
+# [Luan van - M3] Lượt hết giờ bị cắt ở ngưỡng timeout, nên T_f và L của nó chỉ
+# phản ánh ngưỡng chứ không phải quỹ đạo tới đích. Nhóm nào không có lượt nào
+# thành công thì hai chỉ số này để "—".
+CAPPED = ("T_f", "L")
+
 # Bảng màu trung tính, hợp cả in đen trắng
 COLORS = ["#3D6FA8", "#0C6E76", "#A5682B", "#6B5B95", "#4F7942"]
 
@@ -83,7 +88,11 @@ def summarize(df, only_success):
                "SR (%)": "%.1f" % sr,
                "n_va_cham": int(g["collided"].sum()),
                "n_qua_gio": int(g["timed_out"].sum())}
+        khong_thanh_cong = int(g["success"].sum()) == 0
         for key, _ in METRICS:
+            if khong_thanh_cong and key in CAPPED:
+                rec[key] = "—"
+                continue
             v = pd.to_numeric(gs[key], errors="coerce").dropna()
             rec[key] = "—" if len(v) == 0 else "%.2f ± %.2f" % (v.mean(), v.std(ddof=1) if len(v) > 1 else 0.0)
         rows.append(rec)
@@ -96,7 +105,9 @@ def write_markdown(summary, path):
     head = ["Bản đồ", "Cấu hình", "N", "SR (%)", "Va chạm", "Quá giờ"] + \
            [labels[k] for k, _ in METRICS]
     lines = ["# Bảng kết quả tổng hợp", "",
-             "Mỗi ô: trung bình ± độ lệch chuẩn. Cột N là số lượt chạy.", "",
+             "Mỗi ô: trung bình ± độ lệch chuẩn. Cột N là số lượt chạy.",
+             "Dấu — ở Thời gian bay và Độ dài quỹ đạo: nhóm không có lượt nào "
+             "thành công, hai chỉ số đó bị chặn bởi ngưỡng hết giờ nên vô nghĩa.", "",
              "| " + " | ".join(head) + " |",
              "|" + "|".join(["---"] * len(head)) + "|"]
     for _, r in summary.iterrows():
