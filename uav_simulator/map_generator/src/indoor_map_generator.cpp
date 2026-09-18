@@ -169,6 +169,26 @@ void buildI4(Cloud& c, unsigned /*seed*/) {
   for (const auto& f : furn) addBox(c, f[0], f[1], f[2], f[3], f[4]);
 }
 
+// ---------------- I5: ngo cut chu U, 20x15x3 ----------------
+// Tuong chu U kin toi tran, mieng quay ve phia xuat phat (-8, 0), dich (8, 0)
+// nam sau day chu U. Dung de ghi nhan cuc tieu dia phuong cua baseline.
+void buildI5(Cloud& c, unsigned /*seed*/) {
+  const double SX = 20.0, SY = 15.0, SZ = 3.0;
+  addRoomShell(c, SX, SY, SZ);
+
+  const double X_MIENG = -2.0, X_DAY = 2.0, Y_CANH = 4.0;   // tui sau 4 m, rong 8 m
+  const Doors khong_cua;
+  // day chu U: vach x = +2, keo dai qua be day canh de bit kin goc
+  addPartition(c, true, X_DAY, -Y_CANH - WALL_T / 2, Y_CANH + WALL_T / 2, SZ, khong_cua);
+  // hai canh chu U: vach y = +-4, tu mieng toi day
+  addPartition(c, false,  Y_CANH, X_MIENG, X_DAY, SZ, khong_cua);
+  addPartition(c, false, -Y_CANH, X_MIENG, X_DAY, SZ, khong_cua);
+  // bit dau hai canh o mieng tui
+  addSlab(c, X_MIENG, X_MIENG,  Y_CANH - WALL_T / 2,  Y_CANH + WALL_T / 2, FLOOR_Z, SZ);
+  addSlab(c, X_MIENG, X_MIENG, -Y_CANH - WALL_T / 2, -Y_CANH + WALL_T / 2, FLOOR_Z, SZ);
+}
+
+
 
 int main(int argc, char** argv) {
   if (argc < 4) {
@@ -184,6 +204,7 @@ int main(int argc, char** argv) {
   if      (type == "I1") buildI1(cloud, seed);
   else if (type == "I3") buildI3(cloud, seed);
   else if (type == "I4") buildI4(cloud, seed);
+  else if (type == "I5") buildI5(cloud, seed);
   else { std::cerr << "Chua cai dat ban do: " << type << "\n"; return 1; }
 
   cloud.width    = cloud.points.size();
