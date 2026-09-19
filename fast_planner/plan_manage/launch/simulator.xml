@@ -12,6 +12,13 @@
   <arg name="c_num"/>
   <arg name="p_num"/>
   <arg name="odometry_topic"/>
+    <!-- [Luan van - M4] vat can dong trong nha -->
+  <arg name="dyn_obs"  default="0"/>
+  <arg name="dyn_num"  default="4"/>
+  <arg name="dyn_x"    default="6.5"/>
+  <arg name="dyn_y"    default="4.0"/>
+  <arg name="dyn_vel"  default="0.8"/>
+  <arg name="dyn_seed" default="1"/>
 
   <group unless="$(arg use_pcd)">
     <node pkg ="map_generator" name ="random_forest" type ="random_forest" output = "screen">    
@@ -106,6 +113,24 @@
 
         <remap from="~global_map" to="/map_generator/global_cloud"/>
         <remap from="~odometry"   to="$(arg odometry_topic)"/>
+  </node>
+  
+  <!-- [Luan van - M4] vat can dong: hop 0.4-0.8 m (truc y x1.5), tam o do cao bay 1.0 m,
+       doi van toc ngau nhien moi 2.5 s. KHONG nam trong dam may diem cua cam bien:
+       UAV chi biet vat can qua /dynamic/pose_i (vi tri chinh xac, khong nhieu) -->
+  <node pkg="plan_env" name="obj_generator" type="obj_generator" output="screen" if="$(arg dyn_obs)">
+    <param name="obj_generator/obj_num"  value="$(arg dyn_num)"/>
+    <param name="obj_generator/x_size"   value="$(arg dyn_x)"/>
+    <param name="obj_generator/y_size"   value="$(arg dyn_y)"/>
+    <param name="obj_generator/h_size"   value="1.5"/>
+    <param name="obj_generator/z_center" value="1.0"/>
+    <param name="obj_generator/vel"      value="$(arg dyn_vel)"/>
+    <param name="obj_generator/yaw_dot"  value="0.0"/>
+    <param name="obj_generator/scale1"   value="0.4"/>
+    <param name="obj_generator/scale2"   value="0.8"/>
+    <param name="obj_generator/interval" value="2.5"/>
+    <param name="obj_generator/seed"     value="$(arg dyn_seed)"/>
+    <param name="obj_generator/height"   value="3.0"/>
   </node>
 
 </launch>

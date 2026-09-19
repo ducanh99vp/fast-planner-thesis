@@ -26,6 +26,11 @@
   <arg name="inflation"    default="0.099"/>
   <arg name="local_range"  default="5.5"/>
   <arg name="virtual_ceil" default="2.5"/>
+    <!-- [Luan van - M4] dyn_obs: co vat can dong + tao bo du doan
+       dynamic_env: planner DUNG du doan — giu 0 toi M6 (FSM dang sai goc thoi gian) -->
+  <arg name="dyn_obs"     default="0"/>
+  <arg name="dyn_num"     default="4"/>
+  <arg name="dynamic_env" default="0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -116,7 +121,15 @@
     <param name="manager/max_vel" value="$(arg max_vel)" type="double"/>
     <param name="manager/max_acc" value="$(arg max_acc)" type="double"/>
     <param name="manager/max_jerk" value="4" type="double"/>
-    <param name="manager/dynamic_environment" value="0" type="int"/>
+    <param name="manager/dynamic_environment" value="$(arg dynamic_env)" type="int"/>
+    <!-- [Luan van - M4] bo du doan vat can dong -->
+    <param name="prediction/enable"       value="$(arg dyn_obs)" type="bool"/>
+    <param name="prediction/obj_num"      value="$(arg dyn_num)" type="int"/>
+    <param name="prediction/predict_rate" value="10.0" type="double"/>
+    <param name="prediction/queue_size"   value="40" type="int"/>
+    <param name="prediction/skip_num"     value="5" type="int"/>
+    <param name="prediction/lambda"       value="1.0" type="double"/>
+    <param name="prediction/eval_horizon" value="1.0" type="double"/>
     <param name="manager/local_segment_length" value="6.0" type="double"/>
     <param name="manager/clearance_threshold" value="0.2" type="double"/>
     <param name="manager/control_points_distance" value="$(arg ctrl_pt_dist)" type="double"/>

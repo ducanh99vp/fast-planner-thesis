@@ -25,6 +25,7 @@
 
 #include <plan_env/obj_predictor.h>
 #include <string>
+#include <limits>
 
 namespace fast_planner {
 /* ============================== obj history_ ============================== */
@@ -69,8 +70,17 @@ ObjPredictor::~ObjPredictor() {
 }
 
 void ObjPredictor::init() {
+  // [Luan van - M4] ba bien static cua ObjHistory truoc day khong duoc gan o dau ca:
+  // queue_size_ = 0 lam lich su luon rong, global_start_time_ = 0 lam t ~ 1.7e9 s
+  ObjHistory::global_start_time_ = ros::Time::now();
+  node_handle_.param("prediction/queue_size", ObjHistory::queue_size_, 40);
+  node_handle_.param("prediction/skip_num", ObjHistory::skip_num_, 5);
+
   /* get param */
   node_handle_.param("prediction/obj_num", obj_num_, 5);
+  // [Luan van - M4] phat vi tri du doan tai (now + eval_horizon) de do sai so du doan
+  node_handle_.param("prediction/eval_horizon", eval_horizon_, 1.0);
+  pred_pub_ = node_handle_.advertise<geometry_msgs::PoseArray>("/dynamic/prediction", 10);
   node_handle_.param("prediction/lambda", lambda_, 1.0);
   node_handle_.param("prediction/predict_rate", predict_rate_, 1.0);
 
@@ -79,6 +89,7 @@ void ObjPredictor::init() {
 
   obj_scale_.reset(new vector<Eigen::Vector3d>);
   obj_scale_->resize(obj_num_);
+  for (auto& sc : *obj_scale_) sc.setZero();  // [Luan van - M4] Eigen khong tu gan 0
   scale_init_.resize(obj_num_);
   for (int i = 0; i < obj_num_; i++)
     scale_init_[i] = false;
@@ -176,10 +187,31 @@ void ObjPredictor::predictPolyFit() {
 void ObjPredictor::predictCallback(const ros::TimerEvent& e) {
   // predictPolyFit();
   predictConstVel();
+
+  // [Luan van - M4] header.stamp = thoi diem ma du doan huong toi (now + eval_horizon);
+  // vat can chua co du doan thi de NaN
+  geometry_msgs::PoseArray pa;
+  ros::Time now = ros::Time::now();
+  pa.header.frame_id = "world";
+  pa.header.stamp = now + ros::Duration(eval_horizon_);
+  double t = (now - ObjHistory::global_start_time_).toSec() + eval_horizon_;
+  for (int i = 0; i < obj_num_; i++) {
+    geometry_msgs::Pose p;
+    p.orientation.w = 1.0;
+    if (predict_trajs_->at(i).valid()) {
+      Eigen::Vector3d q = predict_trajs_->at(i).evaluateConstVel(t);
+      p.position.x = q(0), p.position.y = q(1), p.position.z = q(2);
+    } else {
+      p.position.x = p.position.y = p.position.z = std::numeric_limits<double>::quiet_NaN();
+    }
+    pa.poses.push_back(p);
+  }
+  pred_pub_.publish(pa);
 }
 
 void ObjPredictor::markerCallback(const visualization_msgs::MarkerConstPtr& msg) {
   int idx = msg->id;
+  if (idx < 0 || idx >= obj_num_) return;  // [Luan van - M4] obj_generator sinh nhieu hon obj_num
   (*obj_scale_)[idx](0) = msg->scale.x;
   (*obj_scale_)[idx](1) = msg->scale.y;
   (*obj_scale_)[idx](2) = msg->scale.z;
@@ -201,6 +233,9 @@ void ObjPredictor::predictConstVel() {
     /* ---------- get the last two point ---------- */
     list<Eigen::Vector4d> his;
     obj_histories_[i]->getHistory(his);
+    // [Luan van - M4] can it nhat 2 mau moi uoc luong duoc van toc; truoc day
+    // lui iterator qua dau list rong -> hanh vi khong xac dinh
+    if (his.size() < 2) continue;
     list<Eigen::Vector4d>::iterator list_it = his.end();
 
     /* ---------- test iteration ---------- */
@@ -219,6 +254,7 @@ void ObjPredictor::predictConstVel() {
     q1 = (*list_it).head(3);
     t1 = (*list_it)(3);
 
+    if (t2 - t1 < 1e-6) continue;  // [Luan van - M4] hai mau trung thoi diem -> ma tran suy bien
     Eigen::Matrix<double, 2, 3> p01, q12;
     q12.row(0) = q1.transpose();
     q12.row(1) = q2.transpose();

@@ -15,6 +15,13 @@
   <arg name="inflation"    default="0.099"/>
   <arg name="local_range"  default="5.5"/>
   <arg name="virtual_ceil" default="2.5"/>
+  <!-- [Luan van - M4] vat can dong; dynamic_env (dong 5) giu 0 toi M6 -->
+  <arg name="dyn_obs"  default="0"/>
+  <arg name="dyn_num"  default="4"/>
+  <arg name="dyn_x"    default="6.5"/>
+  <arg name="dyn_y"    default="4.0"/>
+  <arg name="dyn_vel"  default="0.8"/>
+  <arg name="dyn_seed" default="1"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -86,6 +93,9 @@
     <arg name="inflation"    value="$(arg inflation)"/>
     <arg name="local_range"  value="$(arg local_range)"/>
     <arg name="virtual_ceil" value="$(arg virtual_ceil)"/>
+    <arg name="dynamic_env"  value="$(arg dynamic_env)"/>
+    <arg name="dyn_obs"      value="$(arg dyn_obs)"/>
+    <arg name="dyn_num"      value="$(arg dyn_num)"/>
 
     <arg name="takeoff_height"       value="$(arg takeoff_height)"/>
   </include>
@@ -117,6 +127,12 @@
     <arg name="init_z" value="$(arg init_z)"/>
     <arg name="use_pcd"  value="$(arg use_pcd)"/>
     <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="dyn_obs"  value="$(arg dyn_obs)"/>
+    <arg name="dyn_num"  value="$(arg dyn_num)"/>
+    <arg name="dyn_x"    value="$(arg dyn_x)"/>
+    <arg name="dyn_y"    value="$(arg dyn_y)"/>
+    <arg name="dyn_vel"  value="$(arg dyn_vel)"/>
+    <arg name="dyn_seed" value="$(arg dyn_seed)"/>
 
     <arg name="odometry_topic" value="$(arg odom_topic)" />
     <arg name="map_seed" value="$(arg map_seed)"/>

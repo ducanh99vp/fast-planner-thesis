@@ -58,6 +58,18 @@ void FastPlannerManager::initPlanModules(ros::NodeHandle& nh) {
   sdf_map_->initMap(nh);
   edt_environment_.reset(new EDTEnvironment);
   edt_environment_->setMap(sdf_map_);
+  // [Luan van - M4] bo du doan vat can dong: tao khi co vat can dong (prediction/enable),
+  // doc lap voi manager/dynamic_environment (planner co DUNG du doan hay khong — M6)
+  bool use_obj_prediction;
+  nh.param("prediction/enable", use_obj_prediction, false);
+  if (use_obj_prediction) {
+    obj_predictor_.reset(new ObjPredictor(nh));
+    obj_predictor_->init();
+    edt_environment_->setObjPrediction(obj_predictor_->getPredictionTraj());
+    edt_environment_->setObjScale(obj_predictor_->getObjScale());
+    ROS_INFO("[Luan van - M4] ObjPredictor bat, theo doi %d vat can",
+             (int)obj_predictor_->getPredictionTraj()->size());
+  }
 
   if (use_geometric_path) {
     geo_path_finder_.reset(new Astar);

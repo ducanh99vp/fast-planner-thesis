@@ -29,6 +29,7 @@
 #include <Eigen/Eigen>
 #include <algorithm>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseArray.h>
 #include <iostream>
 #include <list>
 #include <ros/ros.h>
@@ -141,6 +142,9 @@ private:
   ObjPrediction predict_trajs_;
   ObjScale obj_scale_;
   vector<bool> scale_init_;
+  // [Luan van - M4] phat vi tri du doan de do sai so du doan
+  ros::Publisher pred_pub_;
+  double eval_horizon_;
 
   void markerCallback(const visualization_msgs::MarkerConstPtr& msg);
 

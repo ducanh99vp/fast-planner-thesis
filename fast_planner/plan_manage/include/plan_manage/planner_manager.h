@@ -68,6 +68,7 @@ public:
   GlobalTrajData global_data_;
   MidPlanData plan_data_;
   EDTEnvironment::Ptr edt_environment_;
+  ObjPredictor::Ptr obj_predictor_;  // [Luan van - M4] bo du doan vat can dong, null neu tat
   ros::Publisher timing_pub_;
   void publishTiming(double t_fe_ms, double t_be_ms, bool ok);
 

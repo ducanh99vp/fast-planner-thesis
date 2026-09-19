@@ -63,11 +63,14 @@ double EDTEnvironment::distToBox(int idx, const Eigen::Vector3d& pos, const doub
 
 double EDTEnvironment::minDistToAllBox(const Eigen::Vector3d& pos, const double& time) {
   double dist = 10000000.0;
+  // [Luan van - M4] chua gan bo du doan (dynamic_environment tat) thi khong co vat can dong
+  if (!obj_prediction_ || !obj_scale_) return dist;
   for (int i = 0; i < obj_prediction_->size(); i++) {
+    // [Luan van - M4] vat can chua du 2 mau lich su thi chua co du doan, bo qua
+    if (!obj_prediction_->at(i).valid()) continue;
     double di = distToBox(i, pos, time);
     if (di < dist) dist = di;
   }
-
   return dist;
 }
 
