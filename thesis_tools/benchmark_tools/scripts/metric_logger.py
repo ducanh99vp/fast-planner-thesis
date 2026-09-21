@@ -53,7 +53,7 @@ FIELDS = [
     "map", "config", "trial",
     "success", "collided", "timed_out",
     "T_f", "L", "v_mean", "v_max", "v_cmd_max","v_cmd_axis_max", "S_J", "j_rms", "dacc_mean", "dacc_max", "d_min", "d_p5", "d_min_cmd", "z_min_flight",
-    "d_min_dyn", "d_p5_dyn", "n_coll_dyn",
+    "d_min_dyn", "d_p5_dyn", "n_coll_dyn", "t_in_dyn",
     "N_replan", "N_fail",
     "t_fe_mean", "t_fe_max", "t_be_mean", "t_be_max", "t_be_p95",
     "start_x", "start_y", "goal_x", "goal_y",
@@ -86,6 +86,7 @@ class MetricLogger(object):
         self.d_min_dyn   = float("inf")
         self.n_coll_dyn  = 0
         self.in_coll_dyn = False
+        self.n_in_dyn    = 0             # so mau odom nam BEN TRONG hop
         self.v_cmd_axis_max = 0.0
         self.lock = threading.Lock()
         self.finished = False
@@ -223,6 +224,8 @@ class MetricLogger(object):
             if self.airborne and self.dyn_num > 0 and self.dyn_boxes:
                 dd = min(dist_to_box(p, c, h) for c, h in self.dyn_boxes.values())
                 self.d_dyn_list.append(dd)
+                if dd <= 0.0:
+                    self.n_in_dyn += 1
                 if dd < self.d_min_dyn:
                     self.d_min_dyn = dd
                 if dd < self.uav_radius:
@@ -369,6 +372,8 @@ class MetricLogger(object):
             "d_min_dyn": round(self.d_min_dyn, 4) if math.isfinite(self.d_min_dyn) else "",
             "d_p5_dyn": round(float(np.percentile(self.d_dyn_list, 5)), 4) if self.d_dyn_list else "",
             "n_coll_dyn": self.n_coll_dyn if self.dyn_num > 0 else "",
+            # [Luan van - M5] so giay UAV nam BEN TRONG vat can dong; khong bao hoa o 0 nhu d_min_dyn
+            "t_in_dyn": round(T_f * self.n_in_dyn / len(self.d_dyn_list), 3) if self.d_dyn_list else "",
             "N_replan": self.n_replan,
             "N_fail": self.n_fail,
             "t_fe_mean": round(float(fe.mean()), 3),

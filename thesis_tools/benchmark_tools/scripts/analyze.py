@@ -55,6 +55,7 @@ METRICS_DYN = [
     ("d_min_dyn",  "Khoảng cách tới vật cản động min (m)"),
     ("d_p5_dyn",   "Vật cản động, phân vị 5% (m)"),
     ("n_coll_dyn", "Số lần va chạm vật cản động"),
+    ("t_in_dyn",   "Thời gian ở trong vật cản động (s)"),
 ]
 # [Luan van - M3] Lượt hết giờ bị cắt ở ngưỡng timeout, nên T_f và L của nó chỉ
 # phản ánh ngưỡng chứ không phải quỹ đạo tới đích. Nhóm nào không có lượt nào
