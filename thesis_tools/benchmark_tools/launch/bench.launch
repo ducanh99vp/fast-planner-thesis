@@ -30,7 +30,10 @@
   <arg name="dyn_obs"  default="0"/>
   <arg name="dyn_num"  default="0"/>
   <arg name="dyn_seed" default="1"/>
-
+  <arg name="dyn_avoid" default="0"/>
+  <arg name="lambda9"   default="5.0"/>
+  <arg name="dist_dyn0" default="0.7"/>
+  <arg name="t_dyn_max" default="2.0"/>
   
   <!-- Kich thuoc ban do va diem xuat phat: doi theo tung ban do Indoor -->
   <arg name="map_size_x" default="40.0"/>
@@ -88,6 +91,10 @@
     <arg name="dyn_obs"  value="$(arg dyn_obs)"/>
     <arg name="dyn_num"  value="$(arg dyn_num)"/>
     <arg name="dyn_seed" value="$(arg dyn_seed)"/>
+     <arg name="dyn_avoid" value="$(arg dyn_avoid)"/>
+    <arg name="lambda9"   value="$(arg lambda9)"/>
+    <arg name="dist_dyn0" value="$(arg dist_dyn0)"/>
+    <arg name="t_dyn_max" value="$(arg t_dyn_max)"/>
   </include>
 
   <!-- ===== Bộ thu thập chỉ số ===== -->

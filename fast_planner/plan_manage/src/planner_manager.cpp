@@ -43,6 +43,7 @@ void FastPlannerManager::initPlanModules(ros::NodeHandle& nh) {
   nh.param("manager/max_acc", pp_.max_acc_, -1.0);
   nh.param("manager/max_jerk", pp_.max_jerk_, -1.0);
   nh.param("manager/dynamic_environment", pp_.dynamic_, -1);
+  nh.param("manager/dyn_avoid", pp_.dyn_avoid_, 0);  // [Luan van - M5]
   nh.param("manager/clearance_threshold", pp_.clearance_, -1.0);
   nh.param("manager/local_segment_length", pp_.local_traj_len_, -1.0);
   nh.param("manager/control_points_distance", pp_.ctrl_pt_dist, -1.0);
@@ -214,6 +215,15 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
   t1 = ros::Time::now();
 
   int cost_function = BsplineOptimizer::NORMAL_PHASE;
+  
+  /* [Luan van - M5] Bat so hang vat can dong f_d. Goc thoi gian phai la
+     ObjHistory::global_start_time_ vi do la goc ma bo du doan khop da thuc;
+     truyen thoi luong quy dao vao day la sai (loi FSM dang mac). */
+  if (pp_.dyn_avoid_ > 0) {
+    cost_function |= BsplineOptimizer::DYNAMIC;
+    bspline_optimizers_[0]->setDynStartTime(
+        (local_data_.start_time_ - ObjHistory::global_start_time_).toSec());
+  }
 
   if (status != KinodynamicAstar::REACH_END) {
     cost_function |= BsplineOptimizer::ENDPOINT;

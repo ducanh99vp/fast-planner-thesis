@@ -155,12 +155,18 @@ def main():
     # [Luan van - M5] bat vat can dong; moi luot mot hat giong de tai lap duoc
     ap.add_argument("--dyn", type=int, default=0,
                     help="so vat can dong (0 = tat)")
+    # [Luan van - M5] bat so hang chi phi f_d; khong bat = B0
+    ap.add_argument("--avoid", action="store_true",
+                    help="bat ne vat can dong f_d trong bo toi uu hoa")
 
     a = ap.parse_args()
     
     # [Luan van - M5] ghi sang CSV rieng, khong lan voi baseline tinh cua M3
+    if a.avoid and a.dyn <= 0:
+        sys.exit("--avoid phai di kem --dyn > 0")
     if a.dyn > 0 and a.out == DEFAULT_CSV:
-        a.out = DEFAULT_CSV.replace("bench.csv", "bench_dyn.csv")
+        a.out = DEFAULT_CSV.replace(
+            "bench.csv", "bench_dyn_avoid.csv" if a.avoid else "bench_dyn.csv")
     
     for m in a.maps:
         if m not in MAPS:
@@ -180,6 +186,7 @@ def main():
           % (total * (a.timeout * 0.5 + 40) / 3600.0, a.timeout * 0.5 + 40))
     print("Vật cản động: %s" % ("%d vật cản, hạt giống = số lượt + 1" % a.dyn if a.dyn > 0 else "không"))
     print("Ghi vào: %s" % a.out)
+    print("Né vật cản động (f_d): %s" % ("BẬT" if a.avoid else "tắt — đây là B0"))
     print("=" * 62)
 
     if a.dry_run:
@@ -204,7 +211,8 @@ def main():
                 if a.dyn > 0:
                     # dat truoc a.extra de nguoi dung van ghi de duoc bang --extra
                     extra = ["dyn_obs:=1", "dyn_num:=%d" % a.dyn,
-                             "dyn_seed:=%d" % (t + 1)] + extra
+                             "dyn_seed:=%d" % (t + 1),
+                             "dyn_avoid:=%d" % (1 if a.avoid else 0)] + extra
                 ok = run_one(m, c, t, g, a.out, a.timeout, extra)
                 if not ok:
                     failed += 1

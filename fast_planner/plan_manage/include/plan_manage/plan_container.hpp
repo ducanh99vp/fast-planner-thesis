@@ -193,6 +193,7 @@ struct PlanParameters {
                                          // control points
   double clearance_;
   int dynamic_;
+  int dyn_avoid_;  // [Luan van - M5] 1 = bat so hang chi phi vat can dong f_d
   /* processing time */
   double time_search_ = 0.0;
   double time_optimize_ = 0.0;

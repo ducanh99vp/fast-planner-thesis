@@ -45,6 +45,7 @@ public:
   static const int ENDPOINT;
   static const int GUIDE;
   static const int WAYPOINTS;
+  static const int DYNAMIC;  // [Luan van - M5] vat can dong
 
   static const int GUIDE_PHASE;
   static const int NORMAL_PHASE;
@@ -70,7 +71,9 @@ public:
   void setGuidePath(const vector<Eigen::Vector3d>& guide_pt);
   void setWaypoints(const vector<Eigen::Vector3d>& waypts,
                     const vector<int>&             waypt_idx);  // N-2 constraints at most
-
+  /* [Luan van - M5] goc thoi gian de tra bo du doan:
+     (luc bat dau doan quy dao) - ObjHistory::global_start_time_ */
+  void setDynStartTime(const double& t);
   void optimize();
 
   Eigen::MatrixXd         getControlPoints();
@@ -104,8 +107,13 @@ private:
   double lambda6_;                // visibility cost weight
   double lambda7_;                // waypoints cost weight
   double lambda8_;                // acc smoothness
+  double lambda9_;                // [Luan van - M5] trong so vat can dong
                                   //
   double dist0_;                  // safe distance
+  double dist_dyn0_;              // [Luan van - M5] khoang an toan voi vat can dong
+  double t_dyn_max_;              // [Luan van - M5] chan troi tin cay cua du doan (s)
+  double dyn_start_t_;            // [Luan van - M5] goc thoi gian tra bo du doan
+
   double max_vel_, max_acc_;      // dynamic limits
   double visib_min_;              // threshold of visibility
   double wnl_;                    //
@@ -126,6 +134,7 @@ private:
   vector<Eigen::Vector3d> g_endpoint_;
   vector<Eigen::Vector3d> g_guide_;
   vector<Eigen::Vector3d> g_waypoints_;
+  vector<Eigen::Vector3d> g_dynamic_;
 
   int                 variable_num_;   // optimization variables
   int                 iter_num_;       // iteration of the solver
@@ -154,6 +163,8 @@ private:
                           vector<Eigen::Vector3d>& gradient);
   void calcWaypointsCost(const vector<Eigen::Vector3d>& q, double& cost,
                          vector<Eigen::Vector3d>& gradient);
+  void calcDynamicCost(const vector<Eigen::Vector3d>& q, double& cost,
+                       vector<Eigen::Vector3d>& gradient);
   void calcViewCost(const vector<Eigen::Vector3d>& q, double& cost, vector<Eigen::Vector3d>& gradient);
   bool isQuadratic();
 

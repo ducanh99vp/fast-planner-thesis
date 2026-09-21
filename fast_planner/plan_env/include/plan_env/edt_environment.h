@@ -71,6 +71,14 @@ public:
   void evaluateEDTWithGrad(const Eigen::Vector3d& pos, double time,
                            double& dist, Eigen::Vector3d& grad);
   double evaluateCoarseEDT(Eigen::Vector3d& pos, double time);
+  /* [Luan van - M5] Truy van vat can DONG de bo toi uu hoa tu tinh chi phi f_d.
+     `time` lay goc la ObjHistory::global_start_time_ — dung goc ma ObjHistory
+     ghi moc thoi gian cua tung mau quan sat, KHONG phai thoi diem bat dau quy
+     dao. Tra ve false khi vat can chua du 2 mau lich su nen chua co du doan. */
+  int  getDynObsNum();
+  bool getDynObsBox(int idx, const double& time, Eigen::Vector3d& center,
+                    Eigen::Vector3d& half);
+
   void getMapRegion(Eigen::Vector3d& ori, Eigen::Vector3d& size) {
     sdf_map_->getRegion(ori, size);
   }

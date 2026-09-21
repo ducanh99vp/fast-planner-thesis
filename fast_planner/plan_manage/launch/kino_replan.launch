@@ -22,6 +22,11 @@
   <arg name="dyn_y"    default="4.0"/>
   <arg name="dyn_vel"  default="0.8"/>
   <arg name="dyn_seed" default="1"/>
+  <!-- [Luan van - M5] bat so hang chi phi vat can dong f_d -->
+  <arg name="dyn_avoid"  default="0"/>
+  <arg name="lambda9"    default="5.0"/>
+  <arg name="dist_dyn0"  default="0.7"/>
+  <arg name="t_dyn_max"  default="2.0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -96,6 +101,10 @@
     <arg name="dynamic_env"  value="$(arg dynamic_env)"/>
     <arg name="dyn_obs"      value="$(arg dyn_obs)"/>
     <arg name="dyn_num"      value="$(arg dyn_num)"/>
+    <arg name="dyn_avoid"    value="$(arg dyn_avoid)"/>
+    <arg name="lambda9"      value="$(arg lambda9)"/>
+    <arg name="dist_dyn0"    value="$(arg dist_dyn0)"/>
+    <arg name="t_dyn_max"    value="$(arg t_dyn_max)"/>
 
     <arg name="takeoff_height"       value="$(arg takeoff_height)"/>
   </include>

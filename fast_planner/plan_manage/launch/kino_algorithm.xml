@@ -31,6 +31,13 @@
   <arg name="dyn_obs"     default="0"/>
   <arg name="dyn_num"     default="4"/>
   <arg name="dynamic_env" default="0"/>
+  <!-- [Luan van - M5] dyn_avoid: bat so hang chi phi vat can dong f_d trong bo
+       toi uu hoa B-spline. Tach rieng khoi dynamic_env (von bat ca nhanh FSM
+       dang sai goc thoi gian) de B0 van tai lap duoc bang dyn_avoid:=0. -->
+  <arg name="dyn_avoid"  default="0"/>
+  <arg name="lambda9"    default="5.0"/>
+  <arg name="dist_dyn0"  default="0.7"/>
+  <arg name="t_dyn_max"  default="2.0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -122,6 +129,7 @@
     <param name="manager/max_acc" value="$(arg max_acc)" type="double"/>
     <param name="manager/max_jerk" value="4" type="double"/>
     <param name="manager/dynamic_environment" value="$(arg dynamic_env)" type="int"/>
+    <param name="manager/dyn_avoid"           value="$(arg dyn_avoid)" type="int"/>
     <!-- [Luan van - M4] bo du doan vat can dong -->
     <param name="prediction/enable"       value="$(arg dyn_obs)" type="bool"/>
     <param name="prediction/obj_num"      value="$(arg dyn_num)" type="int"/>
@@ -160,6 +168,9 @@
     <param name="optimization/lambda4" value="0.01" type="double"/>
     <param name="optimization/lambda7" value="100.0" type="double"/>
     <param name="optimization/dist0" value="$(arg dist0)" type="double"/>
+    <param name="optimization/lambda9"   value="$(arg lambda9)" type="double"/>
+    <param name="optimization/dist_dyn0" value="$(arg dist_dyn0)" type="double"/>
+    <param name="optimization/t_dyn_max" value="$(arg t_dyn_max)" type="double"/>
     <param name="optimization/max_vel" value="$(arg max_vel)" type="double"/>
     <param name="optimization/max_acc" value="$(arg max_acc)" type="double"/>
 

@@ -25,6 +25,7 @@
 
 #include "bspline_opt/bspline_optimizer.h"
 #include <nlopt.hpp>
+#include <plan_env/box_dist.h>  // [Luan van - M5] signedDistToBox
 // using namespace std;
 
 namespace fast_planner {
@@ -35,6 +36,8 @@ const int BsplineOptimizer::FEASIBILITY = (1 << 2);
 const int BsplineOptimizer::ENDPOINT    = (1 << 3);
 const int BsplineOptimizer::GUIDE       = (1 << 4);
 const int BsplineOptimizer::WAYPOINTS   = (1 << 6);
+const int BsplineOptimizer::DYNAMIC     = (1 << 7);  // [Luan van - M5]
+
 
 const int BsplineOptimizer::GUIDE_PHASE = BsplineOptimizer::SMOOTHNESS | BsplineOptimizer::GUIDE;
 const int BsplineOptimizer::NORMAL_PHASE =
@@ -51,6 +54,12 @@ void BsplineOptimizer::setParam(ros::NodeHandle& nh) {
   nh.param("optimization/lambda8", lambda8_, -1.0);
 
   nh.param("optimization/dist0", dist0_, -1.0);
+  /* [Luan van - M5] vat can dong. lambda9 = 0 lam f_d tro thanh vo hieu,
+     tuc la quay ve dung hanh vi cua B0 — do la kieu hong an toan. */
+  nh.param("optimization/lambda9", lambda9_, 0.0);
+  nh.param("optimization/dist_dyn0", dist_dyn0_, 0.7);
+  nh.param("optimization/t_dyn_max", t_dyn_max_, 2.0);
+  dyn_start_t_ = 0.0;
   nh.param("optimization/max_vel", max_vel_, -1.0);
   nh.param("optimization/max_acc", max_acc_, -1.0);
   nh.param("optimization/visib_min", visib_min_, -1.0);
@@ -134,6 +143,7 @@ void BsplineOptimizer::optimize() {
   g_endpoint_.resize(pt_num);
   g_waypoints_.resize(pt_num);
   g_guide_.resize(pt_num);
+  g_dynamic_.resize(pt_num);
 
   if (cost_function_ & ENDPOINT) {
     variable_num_ = dim_ * (pt_num - order_);
@@ -235,6 +245,50 @@ void BsplineOptimizer::calcDistanceCost(const vector<Eigen::Vector3d>& q, double
     if (dist < dist0_) {
       cost += pow(dist - dist0_, 2);
       gradient[i] += 2.0 * (dist - dist0_) * dist_grad;
+    }
+  }
+}
+void BsplineOptimizer::setDynStartTime(const double& t) { dyn_start_t_ = t; }
+
+/* [Luan van - M5] Chi phi vat can DONG.
+ *
+ * Diem dieu khien Q_i cua B-spline bac 3 nut deu anh huong manh nhat tai hoanh
+ * do Greville t_i = (i - 1) * ts (kiem bang so: dinh cua ham co so N_{i,3} roi
+ * dung vao do). Thoi diem tuyet doi de tra bo du doan la dyn_start_t_ + t_i.
+ *
+ * f = sum_i sum_k (d_ik - dist_dyn0_)^2  voi moi d_ik < dist_dyn0_,
+ * trong do d_ik la khoang cach CO DAU tu Q_i toi hop du doan cua vat can k.
+ * Cong don TAT CA vat can gan chu khong chi vat can gan nhat, de gradient
+ * khong nhay khi thu tu cac vat can doi cho nhau.
+ *
+ * Khong dung EDTEnvironment::distToBox vi ham do tra ve 0 cho moi diem ben
+ * trong hop -> gradient bang 0 dung luc UAV da lot vao trong.
+ */
+
+void BsplineOptimizer::calcDynamicCost(const vector<Eigen::Vector3d>& q, double& cost,
+                                       vector<Eigen::Vector3d>& gradient) {
+  cost = 0.0;
+  Eigen::Vector3d zero(0, 0, 0);
+  std::fill(gradient.begin(), gradient.end(), zero);
+
+  const int n_obs = edt_environment_->getDynObsNum();
+  if (n_obs <= 0) return;
+
+  int end_idx = (cost_function_ & ENDPOINT) ? q.size() : q.size() - order_;
+
+  for (int i = order_; i < end_idx; i++) {
+    double t_i = (i - 1) * bspline_interval_;
+    if (t_i > t_dyn_max_) break;  // xa hon chan troi tin cay cua du doan van toc deu
+
+    for (int k = 0; k < n_obs; k++) {
+      Eigen::Vector3d center, half, dist_grad;
+      if (!edt_environment_->getDynObsBox(k, dyn_start_t_ + t_i, center, half)) continue;
+
+      double dist = signedDistToBox(q[i], center, half, dist_grad);
+      if (dist < dist_dyn0_) {
+        cost += pow(dist - dist_dyn0_, 2);
+        gradient[i] += 2.0 * (dist - dist_dyn0_) * dist_grad;
+      }
     }
   }
 }
@@ -396,6 +450,7 @@ void BsplineOptimizer::combineCost(const std::vector<double>& x, std::vector<dou
   /*  evaluate costs and their gradient  */
   double f_smoothness, f_distance, f_feasibility, f_endpoint, f_guide, f_waypoints;
   f_smoothness = f_distance = f_feasibility = f_endpoint = f_guide = f_waypoints = 0.0;
+  double f_dynamic = 0.0;  // [Luan van - M5]
 
   if (cost_function_ & SMOOTHNESS) {
     calcSmoothnessCost(g_q_, f_smoothness, g_smoothness_);
@@ -433,6 +488,13 @@ void BsplineOptimizer::combineCost(const std::vector<double>& x, std::vector<dou
     for (int i = 0; i < variable_num_ / dim_; i++)
       for (int j = 0; j < dim_; j++) grad[dim_ * i + j] += lambda7_ * g_waypoints_[i + order_](j);
   }
+  if (cost_function_ & DYNAMIC) {  // [Luan van - M5]
+    calcDynamicCost(g_q_, f_dynamic, g_dynamic_);
+    f_combine += lambda9_ * f_dynamic;
+    for (int i = 0; i < variable_num_ / dim_; i++)
+      for (int j = 0; j < dim_; j++) grad[dim_ * i + j] += lambda9_ * g_dynamic_[i + order_](j);
+  }
+
   /*  print cost  */
   // if ((cost_function_ & WAYPOINTS) && iter_num_ % 10 == 0) {
   //   cout << iter_num_ << ", total: " << f_combine << ", acc: " << lambda8_ * f_view

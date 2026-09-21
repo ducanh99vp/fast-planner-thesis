@@ -120,6 +120,24 @@ void EDTEnvironment::evaluateEDTWithGrad(const Eigen::Vector3d& pos,
   interpolateTrilinear(dists, diff, dist, grad);
 }
 
+/* [Luan van - M5] So vat can dong dang theo doi (0 khi chua gan bo du doan). */
+int EDTEnvironment::getDynObsNum() {
+  if (!obj_prediction_ || !obj_scale_) return 0;
+  return int(obj_prediction_->size());
+}
+
+/* [Luan van - M5] Hop du doan cua vat can idx tai thoi diem time. */
+bool EDTEnvironment::getDynObsBox(int idx, const double& time, Eigen::Vector3d& center,
+                                  Eigen::Vector3d& half) {
+  if (!obj_prediction_ || !obj_scale_) return false;
+  if (idx < 0 || idx >= int(obj_prediction_->size())) return false;
+  if (!obj_prediction_->at(idx).valid()) return false;
+
+  center = obj_prediction_->at(idx).evaluateConstVel(time);
+  half   = 0.5 * obj_scale_->at(idx);
+  return true;
+}
+
 double EDTEnvironment::evaluateCoarseEDT(Eigen::Vector3d& pos, double time) {
   double d1 = sdf_map_->getDistance(pos);
   if (time < 0.0) {
