@@ -50,7 +50,12 @@ METRICS = [
     ("N_replan",  "Số lần lập lại"),
     ("z_min_flight", "Độ cao bay thấp nhất (m)"),         # [Luan van - M3]
 ]
-
+# [Luan van - M5] Chỉ số vật cản động — chỉ có trong CSV của đợt chạy bật dyn_obs
+METRICS_DYN = [
+    ("d_min_dyn",  "Khoảng cách tới vật cản động min (m)"),
+    ("d_p5_dyn",   "Vật cản động, phân vị 5% (m)"),
+    ("n_coll_dyn", "Số lần va chạm vật cản động"),
+]
 # [Luan van - M3] Lượt hết giờ bị cắt ở ngưỡng timeout, nên T_f và L của nó chỉ
 # phản ánh ngưỡng chứ không phải quỹ đạo tới đích. Nhóm nào không có lượt nào
 # thành công thì hai chỉ số này để "—".
@@ -72,6 +77,9 @@ def load(path):
     if missing:
         raise SystemExit("CSV %s thiếu cột: %s — file sinh từ lược đồ cũ, hãy chạy lại"
                          % (path, ", ".join(missing)))
+    # [Luan van - M5] CSV co cot vat can dong thi tong hop luon
+    if all(k in df.columns for k, _ in METRICS_DYN) and METRICS_DYN[0] not in METRICS:
+        METRICS.extend(METRICS_DYN)
     df["d_min"] = pd.to_numeric(df["d_min"], errors="coerce")
     return df
 

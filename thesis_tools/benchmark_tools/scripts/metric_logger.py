@@ -32,6 +32,7 @@ import rospy
 from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import PointCloud2
+from visualization_msgs.msg import Marker
 from std_msgs.msg import Float64MultiArray
 import sensor_msgs.point_cloud2 as pc2
 
@@ -52,12 +53,16 @@ FIELDS = [
     "map", "config", "trial",
     "success", "collided", "timed_out",
     "T_f", "L", "v_mean", "v_max", "v_cmd_max","v_cmd_axis_max", "S_J", "j_rms", "dacc_mean", "dacc_max", "d_min", "d_p5", "d_min_cmd", "z_min_flight",
+    "d_min_dyn", "d_p5_dyn", "n_coll_dyn",
     "N_replan", "N_fail",
     "t_fe_mean", "t_fe_max", "t_be_mean", "t_be_max", "t_be_p95",
     "start_x", "start_y", "goal_x", "goal_y",
     "n_odom", "stamp",
 ]
 
+def dist_to_box(p, center, half):
+    """[Luan van - M5] Khoang cach tu diem toi hop song song truc (0 neu ben trong)."""
+    return float(np.linalg.norm(np.maximum(np.abs(p - center) - half, 0.0)))
 
 class MetricLogger(object):
 
@@ -74,6 +79,13 @@ class MetricLogger(object):
         self.goal_delay = float(rospy.get_param("~goal_delay", 4.0))
         # [Luan van - M3] do cao cat canh (<= 0: tat); truoc khi cat canh xong khong xet va cham
         self.takeoff_h  = float(rospy.get_param("~takeoff_height", -1.0))
+        # [Luan van - M5] so vat can dong; 0 = khong do vat can dong
+        self.dyn_num     = int(rospy.get_param("~dyn_num", 0))
+        self.dyn_boxes   = {}            # id -> (tam, nua kich thuoc)
+        self.d_dyn_list  = []
+        self.d_min_dyn   = float("inf")
+        self.n_coll_dyn  = 0
+        self.in_coll_dyn = False
         self.v_cmd_axis_max = 0.0
         self.lock = threading.Lock()
         self.finished = False
@@ -126,6 +138,9 @@ class MetricLogger(object):
             rospy.Subscriber("/planning/pos_cmd", PositionCommand,
                              self.cb_cmd, queue_size=50)
 
+        if self.dyn_num > 0:
+            rospy.Subscriber("/dynamic/obj", Marker, self.cb_dyn_obj, queue_size=20)
+        
         rospy.Timer(rospy.Duration(0.2), self.cb_tick)
 
         rospy.loginfo("[metric_logger] %s / %s / lượt %d — đích (%.2f, %.2f)",
@@ -150,6 +165,16 @@ class MetricLogger(object):
         rospy.loginfo("[metric_logger] Đã nạp bản đồ: %d điểm", self.cloud_n)
 
     # ------------------------------------------------------------------
+    def cb_dyn_obj(self, msg):
+        """[Luan van - M5] Vi tri va kich thuoc hop cua tung vat can dong, 30 Hz."""
+        with self.lock:
+            p = msg.pose.position
+            self.dyn_boxes[msg.id] = (
+                np.array([p.x, p.y, p.z]),
+                0.5 * np.array([msg.scale.x, msg.scale.y, msg.scale.z]))
+
+    # ------------------------------------------------------------------
+
     def cb_odom(self, msg):
         with self.lock:
             if self.finished:
@@ -194,7 +219,18 @@ class MetricLogger(object):
                     if not self.collided:
                         rospy.logwarn("[metric_logger] VA CHẠM: d = %.3f m", d)
                     self.collided = True
-
+            # [Luan van - M5] khoang cach toi vat can dong gan nhat
+            if self.airborne and self.dyn_num > 0 and self.dyn_boxes:
+                dd = min(dist_to_box(p, c, h) for c, h in self.dyn_boxes.values())
+                self.d_dyn_list.append(dd)
+                if dd < self.d_min_dyn:
+                    self.d_min_dyn = dd
+                if dd < self.uav_radius:
+                    if not self.in_coll_dyn:
+                        self.n_coll_dyn += 1
+                        self.in_coll_dyn = True
+                elif dd > self.uav_radius + 0.05:
+                    self.in_coll_dyn = False
             # tới đích chưa
             goal = np.array([self.goal_x, self.goal_y, 1.0])
             if np.linalg.norm(p - goal) < self.goal_tol:
@@ -329,6 +365,10 @@ class MetricLogger(object):
             "d_p5": round(float(np.percentile(self.d_list, 5)), 4) if self.d_list else "",
             "d_min_cmd": round(self.d_min_cmd, 4) if math.isfinite(self.d_min_cmd) else "",
             "z_min_flight": round(self.z_min_flight, 3) if math.isfinite(self.z_min_flight) else "",
+            # [Luan van - M5] vat can dong; de trong khi khong bat
+            "d_min_dyn": round(self.d_min_dyn, 4) if math.isfinite(self.d_min_dyn) else "",
+            "d_p5_dyn": round(float(np.percentile(self.d_dyn_list, 5)), 4) if self.d_dyn_list else "",
+            "n_coll_dyn": self.n_coll_dyn if self.dyn_num > 0 else "",
             "N_replan": self.n_replan,
             "N_fail": self.n_fail,
             "t_fe_mean": round(float(fe.mean()), 3),

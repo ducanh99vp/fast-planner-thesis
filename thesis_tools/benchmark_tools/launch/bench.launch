@@ -23,6 +23,13 @@
 
   <!-- Bật đường ống vật cản động. Để 0 ở mốc M2, sẽ dùng từ M4. -->
   <arg name="dynamic_env" default="0"/>
+  
+  <!-- [Luan van - M5] Vat can dong. dyn_obs=1 thi obj_generator chay va
+       metric_logger do them khoang cach toi vat can dong.
+       batch_runner luon truyen ca ba tham so nay. -->
+  <arg name="dyn_obs"  default="0"/>
+  <arg name="dyn_num"  default="0"/>
+  <arg name="dyn_seed" default="1"/>
 
   
   <!-- Kich thuoc ban do va diem xuat phat: doi theo tung ban do Indoor -->
@@ -78,6 +85,9 @@
 
     <arg name="use_pcd"  value="$(arg use_pcd)"/>
     <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="dyn_obs"  value="$(arg dyn_obs)"/>
+    <arg name="dyn_num"  value="$(arg dyn_num)"/>
+    <arg name="dyn_seed" value="$(arg dyn_seed)"/>
   </include>
 
   <!-- ===== Bộ thu thập chỉ số ===== -->
@@ -96,6 +106,8 @@
          phát đích. Để hệ thống ổn định, tránh đo cả giai đoạn khởi động. -->
     <param name="goal_delay" value="4.0"/>
     <param name="takeoff_height" value="$(arg takeoff_height)"/>
+    <!-- [Luan van - M5] 0 = khong do vat can dong -->
+    <param name="dyn_num" value="$(arg dyn_num)"/>
   </node>
 
 </launch>

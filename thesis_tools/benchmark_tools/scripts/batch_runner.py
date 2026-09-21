@@ -152,7 +152,15 @@ def main():
                     help="chỉ in ra lịch chạy, không thực thi")
     ap.add_argument("--extra", nargs="*", default=[],
                     help="tham số roslaunch bổ sung, ví dụ dynamic_env:=1")
+    # [Luan van - M5] bat vat can dong; moi luot mot hat giong de tai lap duoc
+    ap.add_argument("--dyn", type=int, default=0,
+                    help="so vat can dong (0 = tat)")
+
     a = ap.parse_args()
+    
+    # [Luan van - M5] ghi sang CSV rieng, khong lan voi baseline tinh cua M3
+    if a.dyn > 0 and a.out == DEFAULT_CSV:
+        a.out = DEFAULT_CSV.replace("bench.csv", "bench_dyn.csv")
     
     for m in a.maps:
         if m not in MAPS:
@@ -170,6 +178,7 @@ def main():
     print("Tổng số lượt chạy: %d" % total)
     print("Ước tính thời gian: %.1f giờ (giả định %.0f giây mỗi lượt)"
           % (total * (a.timeout * 0.5 + 40) / 3600.0, a.timeout * 0.5 + 40))
+    print("Vật cản động: %s" % ("%d vật cản, hạt giống = số lượt + 1" % a.dyn if a.dyn > 0 else "không"))
     print("Ghi vào: %s" % a.out)
     print("=" * 62)
 
@@ -191,7 +200,12 @@ def main():
                 done += 1
                 g = goals[t % len(goals)]
                 print("[%d/%d] %s | %s | lượt %d" % (done, total, m, c, t))
-                ok = run_one(m, c, t, g, a.out, a.timeout, a.extra)
+                extra = list(a.extra)
+                if a.dyn > 0:
+                    # dat truoc a.extra de nguoi dung van ghi de duoc bang --extra
+                    extra = ["dyn_obs:=1", "dyn_num:=%d" % a.dyn,
+                             "dyn_seed:=%d" % (t + 1)] + extra
+                ok = run_one(m, c, t, g, a.out, a.timeout, extra)
                 if not ok:
                     failed += 1
                     print("     KHÔNG ghi được dòng nào — xem lại lượt này")
