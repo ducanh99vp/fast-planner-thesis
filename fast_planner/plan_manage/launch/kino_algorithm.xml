@@ -38,6 +38,10 @@
   <arg name="lambda9"    default="5.0"/>
   <arg name="dist_dyn0"  default="0.7"/>
   <arg name="t_dyn_max"  default="2.0"/>
+  <!-- [Luan van - M5] lap lai sau moi bay nhieu MET (khong phai giay) -->
+  <arg name="thresh_replan" default="1.5"/>  
+  <!-- [Luan van - M5] bien an toan vat can dong tang theo t: d0 + rate*t (m/s) -->
+  <arg name="dyn_margin_rate" default="0.0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -68,7 +72,7 @@
 
     <!-- planning fsm -->
     <param name="fsm/flight_type" value="$(arg flight_type)" type="int"/>
-    <param name="fsm/thresh_replan" value="1.5" type="double"/>
+    <param name="fsm/thresh_replan" value="$(arg thresh_replan)" type="double"/>
     <param name="fsm/thresh_no_replan" value="2.0" type="double"/>
     <param name="fsm/takeoff_height" value="$(arg takeoff_height)" type="double"/>
 
@@ -171,6 +175,7 @@
     <param name="optimization/lambda9"   value="$(arg lambda9)" type="double"/>
     <param name="optimization/dist_dyn0" value="$(arg dist_dyn0)" type="double"/>
     <param name="optimization/t_dyn_max" value="$(arg t_dyn_max)" type="double"/>
+    <param name="optimization/dyn_margin_rate" value="$(arg dyn_margin_rate)" type="double"/>
     <param name="optimization/max_vel" value="$(arg max_vel)" type="double"/>
     <param name="optimization/max_acc" value="$(arg max_acc)" type="double"/>
 

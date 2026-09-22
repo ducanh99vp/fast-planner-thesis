@@ -59,6 +59,10 @@ void BsplineOptimizer::setParam(ros::NodeHandle& nh) {
   nh.param("optimization/lambda9", lambda9_, 0.0);
   nh.param("optimization/dist_dyn0", dist_dyn0_, 0.7);
   nh.param("optimization/t_dyn_max", t_dyn_max_, 2.0);
+  /* [Luan van - M5] bien an toan tang tuyen tinh theo thoi diem cua diem dieu khien.
+     0 = bien co dinh (hanh vi B1/B2). Sai so du doan do tren I1 tang ~0.5 m/s
+     (trung binh) va ~1.2 m/s (p95). */
+  nh.param("optimization/dyn_margin_rate", dyn_margin_rate_, 0.0);
   dyn_start_t_ = 0.0;
   nh.param("optimization/max_vel", max_vel_, -1.0);
   nh.param("optimization/max_acc", max_acc_, -1.0);
@@ -279,15 +283,18 @@ void BsplineOptimizer::calcDynamicCost(const vector<Eigen::Vector3d>& q, double&
   for (int i = order_; i < end_idx; i++) {
     double t_i = (i - 1) * bspline_interval_;
     if (t_i > t_dyn_max_) break;  // xa hon chan troi tin cay cua du doan van toc deu
+    /* [Luan van - M5] du doan cang xa cang kem tin -> doi khoang cach rong hon.
+       d0 khong phu thuoc q[i] nen gradient giu nguyen dang. */
+    const double d0 = dist_dyn0_ + dyn_margin_rate_ * t_i;
 
     for (int k = 0; k < n_obs; k++) {
       Eigen::Vector3d center, half, dist_grad;
       if (!edt_environment_->getDynObsBox(k, dyn_start_t_ + t_i, center, half)) continue;
 
       double dist = signedDistToBox(q[i], center, half, dist_grad);
-      if (dist < dist_dyn0_) {
-        cost += pow(dist - dist_dyn0_, 2);
-        gradient[i] += 2.0 * (dist - dist_dyn0_) * dist_grad;
+      if (dist < d0) {
+        cost += pow(dist - d0, 2);
+        gradient[i] += 2.0 * (dist - d0) * dist_grad;
       }
     }
   }

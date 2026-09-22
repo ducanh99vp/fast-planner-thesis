@@ -27,6 +27,8 @@
   <arg name="lambda9"    default="5.0"/>
   <arg name="dist_dyn0"  default="0.7"/>
   <arg name="t_dyn_max"  default="2.0"/>
+  <arg name="thresh_replan" default="1.5"/>
+  <arg name="dyn_margin_rate" default="0.0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -105,6 +107,8 @@
     <arg name="lambda9"      value="$(arg lambda9)"/>
     <arg name="dist_dyn0"    value="$(arg dist_dyn0)"/>
     <arg name="t_dyn_max"    value="$(arg t_dyn_max)"/>
+    <arg name="thresh_replan" value="$(arg thresh_replan)"/>
+    <arg name="dyn_margin_rate" value="$(arg dyn_margin_rate)"/>
 
     <arg name="takeoff_height"       value="$(arg takeoff_height)"/>
   </include>

@@ -112,6 +112,7 @@ private:
   double dist0_;                  // safe distance
   double dist_dyn0_;              // [Luan van - M5] khoang an toan voi vat can dong
   double t_dyn_max_;              // [Luan van - M5] chan troi tin cay cua du doan (s)
+  double dyn_margin_rate_;        // [Luan van - M5] bien an toan tang theo t (m/s)
   double dyn_start_t_;            // [Luan van - M5] goc thoi gian tra bo du doan
 
   double max_vel_, max_acc_;      // dynamic limits

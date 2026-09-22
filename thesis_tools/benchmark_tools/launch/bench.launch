@@ -34,6 +34,8 @@
   <arg name="lambda9"   default="5.0"/>
   <arg name="dist_dyn0" default="0.7"/>
   <arg name="t_dyn_max" default="2.0"/>
+  <arg name="thresh_replan" default="1.5"/>
+  <arg name="dyn_margin_rate" default="0.0"/>
   
   <!-- Kich thuoc ban do va diem xuat phat: doi theo tung ban do Indoor -->
   <arg name="map_size_x" default="40.0"/>
@@ -91,10 +93,12 @@
     <arg name="dyn_obs"  value="$(arg dyn_obs)"/>
     <arg name="dyn_num"  value="$(arg dyn_num)"/>
     <arg name="dyn_seed" value="$(arg dyn_seed)"/>
-     <arg name="dyn_avoid" value="$(arg dyn_avoid)"/>
+    <arg name="dyn_avoid" value="$(arg dyn_avoid)"/>
     <arg name="lambda9"   value="$(arg lambda9)"/>
     <arg name="dist_dyn0" value="$(arg dist_dyn0)"/>
     <arg name="t_dyn_max" value="$(arg t_dyn_max)"/>
+    <arg name="thresh_replan" value="$(arg thresh_replan)"/>
+    <arg name="dyn_margin_rate" value="$(arg dyn_margin_rate)"/>
   </include>
 
   <!-- ===== Bộ thu thập chỉ số ===== -->

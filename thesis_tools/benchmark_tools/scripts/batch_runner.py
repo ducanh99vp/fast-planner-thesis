@@ -146,6 +146,9 @@ def main():
     ap.add_argument("--maps", nargs="+", default=["I1"])
     ap.add_argument("--configs", nargs="+", default=["P0"])
     ap.add_argument("--trials", type=int, default=20)
+    # [Luan van - M5] chay tiep tu luot nay (luot va hat giong = luot + 1 khong trung dot cu)
+    ap.add_argument("--start", type=int, default=0,
+                    help="so thu tu luot dau tien (mac dinh 0)")
     ap.add_argument("--timeout", type=float, default=120.0)
     ap.add_argument("--out", default=DEFAULT_CSV)
     ap.add_argument("--dry-run", action="store_true",
@@ -184,6 +187,7 @@ def main():
     print("Tổng số lượt chạy: %d" % total)
     print("Ước tính thời gian: %.1f giờ (giả định %.0f giây mỗi lượt)"
           % (total * (a.timeout * 0.5 + 40) / 3600.0, a.timeout * 0.5 + 40))
+    print("Lượt: %d .. %d" % (a.start, a.start + a.trials - 1))
     print("Vật cản động: %s" % ("%d vật cản, hạt giống = số lượt + 1" % a.dyn if a.dyn > 0 else "không"))
     print("Ghi vào: %s" % a.out)
     print("Né vật cản động (f_d): %s" % ("BẬT" if a.avoid else "tắt — đây là B0"))
@@ -192,7 +196,7 @@ def main():
     if a.dry_run:
         for m in a.maps:
             for c in a.configs:
-                for t in range(a.trials):
+                for t in range(a.start, a.start + a.trials):
                     g = MAPS[m]["goals"][t % len(MAPS[m]["goals"])]
                     print("  %s | %s | lượt %2d | đích (%.1f, %.1f)" % (m, c, t, g[0], g[1]))
                     print("     " + " ".join(map_args(m)))
@@ -203,7 +207,7 @@ def main():
     for m in a.maps:
         goals = MAPS[m]["goals"]
         for c in a.configs:
-            for t in range(a.trials):
+            for t in range(a.start, a.start + a.trials):
                 done += 1
                 g = goals[t % len(goals)]
                 print("[%d/%d] %s | %s | lượt %d" % (done, total, m, c, t))
