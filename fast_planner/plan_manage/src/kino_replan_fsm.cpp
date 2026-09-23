@@ -184,8 +184,18 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
 
       /* && (end_pt_ - pos).norm() < 0.5 */
       if (t_cur > info->duration_ - 1e-2) {
-        have_target_ = false;
-        changeFSMExecState(WAIT_TARGET, "FSM");
+        /* [Luan van - M5] Quy dao het thoi luong KHONG dong nghia la da toi dich.
+           Khi f_d keo quy dao quay dau, diem cuoi co the con cach dich hang met,
+           ma do dich chuyen duong thang lai nho hon thresh_replan nen dieu kien
+           lap lai khong bao gio kich hoat. Ban goc bo luon muc tieu -> UAV treo
+           tai cho toi het gio (da do: dung yen 110 s o cach dich 8 m).
+           Con xa dich thi lap lai, chi bo muc tieu khi that su da toi. */
+        if ((end_pt_ - pos).norm() > 0.5) {
+          changeFSMExecState(GEN_NEW_TRAJ, "FSM");
+        } else {
+          have_target_ = false;
+          changeFSMExecState(WAIT_TARGET, "FSM");
+        }
         return;
 
       } else if ((end_pt_ - pos).norm() < no_replan_thresh_) {
