@@ -44,6 +44,7 @@ void FastPlannerManager::initPlanModules(ros::NodeHandle& nh) {
   nh.param("manager/max_jerk", pp_.max_jerk_, -1.0);
   nh.param("manager/dynamic_environment", pp_.dynamic_, -1);
   nh.param("manager/dyn_avoid", pp_.dyn_avoid_, 0);  // [Luan van - M5]
+  nh.param("manager/dyn_static_min", pp_.dyn_static_min_, 0.2);  // [Luan van - M5]
   nh.param("manager/clearance_threshold", pp_.clearance_, -1.0);
   nh.param("manager/local_segment_length", pp_.local_traj_len_, -1.0);
   nh.param("manager/control_points_distance", pp_.ctrl_pt_dist, -1.0);
@@ -229,7 +230,22 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
     cost_function |= BsplineOptimizer::ENDPOINT;
   }
 
-  ctrl_pts = bspline_optimizers_[0]->BsplineOptimizeTraj(ctrl_pts, ts, cost_function, 1, 1);
+  /* [Luan van - M5] Tranh vat can TINH la rang buoc bat buoc, tranh vat can DONG
+     chi la muc tieu co gang. Khi bien an toan dong doi rong hon khong gian con
+     lai, bo giai day quy dao vao tuong (da do: doi 2.2 m tren khoang trong
+     1.5 m sau lung, lap lai 6/6 lan). Neu quy dao toi uu vi pham khoang cach
+     tinh thi giam trong so f_d roi giai lai; buoc cuoi bo han f_d. */
+  const Eigen::MatrixXd init_pts   = ctrl_pts;
+  const double          dyn_scales[4] = { 1.0, 0.5, 0.25, 0.0 };
+  for (int it = 0; it < 4; ++it) {
+    bspline_optimizers_[0]->setDynScale(dyn_scales[it]);
+    ctrl_pts = bspline_optimizers_[0]->BsplineOptimizeTraj(init_pts, ts, cost_function, 1, 1);
+    if (!(cost_function & BsplineOptimizer::DYNAMIC)) break;
+    if (staticClearanceOk(ctrl_pts, ts)) break;
+    ROS_WARN("[Luan van - M5] quy dao vi pham khoang cach tinh, ha trong so f_d xuong %.2f",
+             dyn_scales[std::min(it + 1, 3)]);
+  }
+  bspline_optimizers_[0]->setDynScale(1.0);
 
   t_opt = (ros::Time::now() - t1).toSec();
 
@@ -458,6 +474,19 @@ void FastPlannerManager::refineTraj(NonUniformBspline& best_traj, double& time_i
   best_traj = NonUniformBspline(ctrl_pts, 3, dt);
   ROS_WARN_STREAM("[Refine]: cost " << (ros::Time::now() - t1).toSec()
                                     << " seconds, time change is: " << time_inc);
+}
+
+/* [Luan van - M5] Quet quy dao 20 Hz, doi ESDF >= dyn_static_min tai moi mau.
+   ESDF dung ban do DA BOM PHONG nen 0.2 m ESDF ~ 0.3 m toi vat can that. */
+bool FastPlannerManager::staticClearanceOk(const Eigen::MatrixXd& ctrl_pts, const double& ts) {
+  NonUniformBspline pos(ctrl_pts, 3, ts);
+  double tm, tmp;
+  pos.getTimeSpan(tm, tmp);
+  for (double t = tm; t <= tmp; t += 0.05) {
+    Eigen::Vector3d p = pos.evaluateDeBoor(t);
+    if (edt_environment_->evaluateCoarseEDT(p, -1.0) < pp_.dyn_static_min_) return false;
+  }
+  return true;
 }
 
 void FastPlannerManager::updateTrajInfo() {

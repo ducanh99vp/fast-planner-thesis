@@ -82,6 +82,8 @@ private:
   vector<BsplineOptimizer::Ptr> bspline_optimizers_;
 
   void updateTrajInfo();
+  /* [Luan van - M5] quy dao co giu du khoang cach voi vat can TINH khong */
+  bool staticClearanceOk(const Eigen::MatrixXd& ctrl_pts, const double& ts);
 
   // topology guided optimization
 

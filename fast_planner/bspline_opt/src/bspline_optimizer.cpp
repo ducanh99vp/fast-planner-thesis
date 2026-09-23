@@ -63,6 +63,7 @@ void BsplineOptimizer::setParam(ros::NodeHandle& nh) {
      0 = bien co dinh (hanh vi B1/B2). Sai so du doan do tren I1 tang ~0.5 m/s
      (trung binh) va ~1.2 m/s (p95). */
   nh.param("optimization/dyn_margin_rate", dyn_margin_rate_, 0.0);
+  dyn_scale_   = 1.0;
   dyn_start_t_ = 0.0;
   nh.param("optimization/max_vel", max_vel_, -1.0);
   nh.param("optimization/max_acc", max_acc_, -1.0);
@@ -253,6 +254,8 @@ void BsplineOptimizer::calcDistanceCost(const vector<Eigen::Vector3d>& q, double
   }
 }
 void BsplineOptimizer::setDynStartTime(const double& t) { dyn_start_t_ = t; }
+
+void BsplineOptimizer::setDynScale(const double& s) { dyn_scale_ = s; }
 
 /* [Luan van - M5] Chi phi vat can DONG.
  *
@@ -495,11 +498,12 @@ void BsplineOptimizer::combineCost(const std::vector<double>& x, std::vector<dou
     for (int i = 0; i < variable_num_ / dim_; i++)
       for (int j = 0; j < dim_; j++) grad[dim_ * i + j] += lambda7_ * g_waypoints_[i + order_](j);
   }
-  if (cost_function_ & DYNAMIC) {  // [Luan van - M5]
+  if ((cost_function_ & DYNAMIC) && dyn_scale_ > 0.0) {  // [Luan van - M5]
+    const double w9 = lambda9_ * dyn_scale_;
     calcDynamicCost(g_q_, f_dynamic, g_dynamic_);
-    f_combine += lambda9_ * f_dynamic;
+    f_combine += w9 * f_dynamic;
     for (int i = 0; i < variable_num_ / dim_; i++)
-      for (int j = 0; j < dim_; j++) grad[dim_ * i + j] += lambda9_ * g_dynamic_[i + order_](j);
+      for (int j = 0; j < dim_; j++) grad[dim_ * i + j] += w9 * g_dynamic_[i + order_](j);
   }
 
   /*  print cost  */

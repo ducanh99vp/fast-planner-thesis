@@ -74,6 +74,8 @@ public:
   /* [Luan van - M5] goc thoi gian de tra bo du doan:
      (luc bat dau doan quy dao) - ObjHistory::global_start_time_ */
   void setDynStartTime(const double& t);
+  /* [Luan van - M5] he so nhan tam thoi cho lambda9 (1 = day du, 0 = tat f_d) */
+  void setDynScale(const double& s);
   void optimize();
 
   Eigen::MatrixXd         getControlPoints();
@@ -113,6 +115,7 @@ private:
   double dist_dyn0_;              // [Luan van - M5] khoang an toan voi vat can dong
   double t_dyn_max_;              // [Luan van - M5] chan troi tin cay cua du doan (s)
   double dyn_margin_rate_;        // [Luan van - M5] bien an toan tang theo t (m/s)
+  double dyn_scale_;              // [Luan van - M5] he so nhan tam thoi cho lambda9
   double dyn_start_t_;            // [Luan van - M5] goc thoi gian tra bo du doan
 
   double max_vel_, max_acc_;      // dynamic limits
