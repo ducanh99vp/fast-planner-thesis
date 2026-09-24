@@ -42,6 +42,9 @@
   <arg name="thresh_replan" default="1.5"/>  
   <!-- [Luan van - M5] bien an toan vat can dong tang theo t: d0 + rate*t (m/s) -->
   <arg name="dyn_margin_rate" default="0.0"/>
+  <!-- [Luan van - M5] ESDF toi thieu quy dao phai giu voi vat can tinh;
+       vi pham thi ha trong so f_d roi giai lai -->
+  <arg name="dyn_static_min" default="0.2"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -134,6 +137,7 @@
     <param name="manager/max_jerk" value="4" type="double"/>
     <param name="manager/dynamic_environment" value="$(arg dynamic_env)" type="int"/>
     <param name="manager/dyn_avoid"           value="$(arg dyn_avoid)" type="int"/>
+    <param name="manager/dyn_static_min"      value="$(arg dyn_static_min)" type="double"/>
     <!-- [Luan van - M4] bo du doan vat can dong -->
     <param name="prediction/enable"       value="$(arg dyn_obs)" type="bool"/>
     <param name="prediction/obj_num"      value="$(arg dyn_num)" type="int"/>

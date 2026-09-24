@@ -29,6 +29,7 @@
   <arg name="t_dyn_max"  default="2.0"/>
   <arg name="thresh_replan" default="1.5"/>
   <arg name="dyn_margin_rate" default="0.0"/>
+  <arg name="dyn_static_min" default="0.2"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -109,6 +110,7 @@
     <arg name="t_dyn_max"    value="$(arg t_dyn_max)"/>
     <arg name="thresh_replan" value="$(arg thresh_replan)"/>
     <arg name="dyn_margin_rate" value="$(arg dyn_margin_rate)"/>
+    <arg name="dyn_static_min" value="$(arg dyn_static_min)"/>
 
     <arg name="takeoff_height"       value="$(arg takeoff_height)"/>
   </include>
