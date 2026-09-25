@@ -32,6 +32,7 @@
 #include <ros/ros.h>
 #include <utility>
 
+#include <plan_env/dyn_obs.h>
 #include <plan_env/obj_predictor.h>
 #include <plan_env/sdf_map.h>
 
@@ -48,6 +49,7 @@ class EDTEnvironment {
 private:
   /* data */
   ObjPrediction obj_prediction_;
+  DynObsList dyn_obs_;  // [Luan van - M6] nguon vat can dong trung lap
   ObjScale obj_scale_;
   double resolution_inv_;
   double distToBox(int idx, const Eigen::Vector3d& pos, const double& time);
@@ -64,6 +66,9 @@ public:
   void init();
   void setMap(SDFMap::Ptr map);
   void setObjPrediction(ObjPrediction prediction);
+  /* [Luan van - M6] Dang ky danh sach vat can dong tu nguon bat ky. Khi da
+     dang ky, getDynObsNum/getDynObsBox doc tu day thay vi tu ObjPrediction. */
+  void setDynObsList(DynObsList list) { dyn_obs_ = list; }
   void setObjScale(ObjScale scale);
   void getSurroundDistance(Eigen::Vector3d pts[2][2][2], double dists[2][2][2]);
   void interpolateTrilinear(double values[2][2][2], const Eigen::Vector3d& diff,

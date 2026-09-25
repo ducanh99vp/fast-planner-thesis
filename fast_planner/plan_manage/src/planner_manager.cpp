@@ -69,6 +69,20 @@ void FastPlannerManager::initPlanModules(ros::NodeHandle& nh) {
     obj_predictor_->init();
     edt_environment_->setObjPrediction(obj_predictor_->getPredictionTraj());
     edt_environment_->setObjScale(obj_predictor_->getObjScale());
+    /* [Luan van - M6] Dang ky ObjPredictor nhu MOT nguon vat can dong, qua
+       giao dien trung lap. O M7a, quy dao B-spline cua UAV hang xom se la
+       nguon thu hai — ham chi phi f_d va A* khong phai sua gi. */
+    ObjPrediction pred  = obj_predictor_->getPredictionTraj();
+    ObjScale      scale = obj_predictor_->getObjScale();
+    DynObsList ds(new vector<DynObs>());
+    for (size_t i = 0; i < pred->size(); ++i) {
+      DynObs o;
+      o.valid  = [pred, i]() { return pred->at(i).valid(); };
+      o.center = [pred, i](double t) { return pred->at(i).evaluateConstVel(t); };
+      o.half   = [scale, i]() { return Eigen::Vector3d(0.5 * scale->at(i)); };
+      ds->push_back(o);
+    }
+    edt_environment_->setDynObsList(ds);
     ROS_INFO("[Luan van - M4] ObjPredictor bat, theo doi %d vat can",
              (int)obj_predictor_->getPredictionTraj()->size());
   }

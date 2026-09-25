@@ -122,6 +122,7 @@ void EDTEnvironment::evaluateEDTWithGrad(const Eigen::Vector3d& pos,
 
 /* [Luan van - M5] So vat can dong dang theo doi (0 khi chua gan bo du doan). */
 int EDTEnvironment::getDynObsNum() {
+  if (dyn_obs_) return int(dyn_obs_->size());  // [Luan van - M6]
   if (!obj_prediction_ || !obj_scale_) return 0;
   return int(obj_prediction_->size());
 }
@@ -129,6 +130,14 @@ int EDTEnvironment::getDynObsNum() {
 /* [Luan van - M5] Hop du doan cua vat can idx tai thoi diem time. */
 bool EDTEnvironment::getDynObsBox(int idx, const double& time, Eigen::Vector3d& center,
                                   Eigen::Vector3d& half) {
+  if (dyn_obs_) {  // [Luan van - M6] nguon trung lap
+    if (idx < 0 || idx >= int(dyn_obs_->size())) return false;
+    const DynObs& o = dyn_obs_->at(idx);
+    if (!o.valid || !o.valid()) return false;
+    center = o.center(time);
+    half   = o.half();
+    return true;
+  }                                 
   if (!obj_prediction_ || !obj_scale_) return false;
   if (idx < 0 || idx >= int(obj_prediction_->size())) return false;
   if (!obj_prediction_->at(idx).valid()) return false;
