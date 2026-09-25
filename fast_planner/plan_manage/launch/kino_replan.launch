@@ -21,6 +21,8 @@
   <arg name="dyn_x"    default="6.5"/>
   <arg name="dyn_y"    default="4.0"/>
   <arg name="dyn_vel"  default="0.8"/>
+  <arg name="dyn_interval" default="2.5"/>
+  <arg name="dyn_unstick" default="0.0"/>
   <arg name="dyn_seed" default="1"/>
   <!-- [Luan van - M5] bat so hang chi phi vat can dong f_d -->
   <arg name="dyn_avoid"  default="0"/>
@@ -147,6 +149,8 @@
     <arg name="dyn_x"    value="$(arg dyn_x)"/>
     <arg name="dyn_y"    value="$(arg dyn_y)"/>
     <arg name="dyn_vel"  value="$(arg dyn_vel)"/>
+    <arg name="dyn_interval" value="$(arg dyn_interval)"/>
+    <arg name="dyn_unstick" value="$(arg dyn_unstick)"/>
     <arg name="dyn_seed" value="$(arg dyn_seed)"/>
 
     <arg name="odometry_topic" value="$(arg odom_topic)" />

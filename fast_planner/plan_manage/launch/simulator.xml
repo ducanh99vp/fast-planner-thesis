@@ -18,6 +18,11 @@
   <arg name="dyn_x"    default="6.5"/>
   <arg name="dyn_y"    default="4.0"/>
   <arg name="dyn_vel"  default="0.8"/>
+  <!-- [Luan van - M5] chu ky doi van toc ngau nhien; dat rat lon = chuyen dong deu
+       (van con phan xa o bien vung va khi cham vat can tinh / cham nhau) -->
+  <arg name="dyn_interval" default="2.5"/>
+  <!-- [Luan van - M5] gieo lai van toc khi vat can ket qua ngan nay (0 = tat) -->
+  <arg name="dyn_unstick" default="0.0"/>
   <arg name="dyn_seed" default="1"/>
 
   <group unless="$(arg use_pcd)">
@@ -128,7 +133,8 @@
     <param name="obj_generator/yaw_dot"  value="0.0"/>
     <param name="obj_generator/scale1"   value="0.4"/>
     <param name="obj_generator/scale2"   value="0.8"/>
-    <param name="obj_generator/interval" value="2.5"/>
+    <param name="obj_generator/interval" value="$(arg dyn_interval)"/>
+    <param name="obj_generator/unstick_time" value="$(arg dyn_unstick)"/>
     <param name="obj_generator/seed"     value="$(arg dyn_seed)"/>
     <param name="obj_generator/height"   value="3.0"/>
   </node>

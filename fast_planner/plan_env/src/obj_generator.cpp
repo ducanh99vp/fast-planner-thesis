@@ -94,6 +94,10 @@ bool hitStatic(const Eigen::Vector3d& pos, const Eigen::Vector3d& scale, Eigen::
 ros::Publisher obj_pub;            // visualize marker
 vector<ros::Publisher> pose_pubs;  // obj pose (from optitrack)
 vector<LinearObjModel> obj_models;
+// [Luan van - M5] go ket: gieo lai van toc khi vat can khong nhuc nhich (0 = tat)
+double _unstick_time;
+vector<Eigen::Vector3d> stuck_pos;
+vector<double> stuck_since;
 
 random_device rd;
 default_random_engine eng(rd());
@@ -130,6 +134,7 @@ int main(int argc, char** argv) {
   node.param("obj_generator/scale1", _scale1, 1.5);
   node.param("obj_generator/scale2", _scale2, 2.5);
   node.param("obj_generator/interval", _interval, 2.5);
+  node.param("obj_generator/unstick_time", _unstick_time, 0.0);
   // [Luan van - M4] mac dinh giu nguyen hanh vi cu: x, y dung chung xy_size,
   // do cao tam ngau nhien, seed tu random_device (moi luot mot bo vat can khac)
   node.param("obj_generator/x_size", _x_size, _xy_size);
@@ -210,6 +215,10 @@ int main(int argc, char** argv) {
 
   time_update = ros::Time::now();
   time_change = ros::Time::now();
+  // [Luan van - M5] moc theo doi ket
+  stuck_pos.resize(obj_num);
+  stuck_since.assign(obj_num, time_update.toSec());
+  for (int i = 0; i < obj_num; ++i) stuck_pos[i] = obj_models[i].getPosition();
 
   /* ---------- start loop ---------- */
   ros::spin();
@@ -261,6 +270,25 @@ void updateCallback(const ros::TimerEvent& e) {
       obj_models[i].setVelocity(v(0), v(1), v(2));
     }
     visualizeObj(i);
+  }
+
+/* [Luan van - M5] Go ket. hitStatic lui vi tri va phan xa van toc, nhung o
+     goc thi phan xa khong go duoc va vat can dung yen mai. Voi _interval nho
+     (2.5 s) dieu do tu het vi van toc duoc gieo lai dinh ky; kich ban van toc
+     deu thi phai go bang tay, neu khong vat can ket vinh vien (da do: 79.6 s). */
+  if (_unstick_time > 0.0) {
+    double tn = time_now.toSec();
+    for (int i = 0; i < obj_num; ++i) {
+      Eigen::Vector3d p = obj_models[i].getPosition();
+      if ((p - stuck_pos[i]).norm() > 0.05) {
+        stuck_pos[i] = p;
+        stuck_since[i] = tn;
+      } else if (tn - stuck_since[i] > _unstick_time) {
+        obj_models[i].setInput(Eigen::Vector3d(rand_vel(eng), rand_vel(eng), 0.0));
+        stuck_pos[i] = p;
+        stuck_since[i] = tn;
+      }
+    }
   }
 
   /* ---------- collision ---------- */
