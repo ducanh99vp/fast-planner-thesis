@@ -45,6 +45,7 @@ void FastPlannerManager::initPlanModules(ros::NodeHandle& nh) {
   nh.param("manager/dynamic_environment", pp_.dynamic_, -1);
   nh.param("manager/dyn_avoid", pp_.dyn_avoid_, 0);  // [Luan van - M5]
   nh.param("manager/dyn_static_min", pp_.dyn_static_min_, 0.2);  // [Luan van - M5]
+  nh.param("manager/dyn_search", pp_.dyn_search_, 0);  // [Luan van - M6]
   nh.param("manager/clearance_threshold", pp_.clearance_, -1.0);
   nh.param("manager/local_segment_length", pp_.local_traj_len_, -1.0);
   nh.param("manager/control_points_distance", pp_.ctrl_pt_dist, -1.0);
@@ -190,15 +191,21 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
 
   kino_path_finder_->reset();
 
-  int status = kino_path_finder_->search(start_pt, start_vel, start_acc, end_pt, end_vel, true);
+  /* [Luan van - M6] Front-end xet vat can dong. Goc thoi gian phai trung voi
+     goc ma bo du doan dung de khop da thuc, giong het f_d o back-end. */
+  const bool   dyn_search = pp_.dyn_search_ > 0;
+  const double t_search0  = (local_data_.start_time_ - ObjHistory::global_start_time_).toSec();
+
+  int status = kino_path_finder_->search(start_pt, start_vel, start_acc, end_pt, end_vel, true,
+                                         dyn_search, t_search0);
 
   if (status == KinodynamicAstar::NO_PATH) {
     cout << "[kino replan]: kinodynamic search fail!" << endl;
 
     // retry searching with discontinuous initial state
     kino_path_finder_->reset();
-    status = kino_path_finder_->search(start_pt, start_vel, start_acc, end_pt, end_vel, false);
-
+    status = kino_path_finder_->search(start_pt, start_vel, start_acc, end_pt, end_vel, false,
+                                       dyn_search, t_search0);
     if (status == KinodynamicAstar::NO_PATH) {
       cout << "[kino replan]: Can't find path." << endl;
       publishTiming((ros::Time::now() - t1).toSec() * 1000.0, 0.0, false);

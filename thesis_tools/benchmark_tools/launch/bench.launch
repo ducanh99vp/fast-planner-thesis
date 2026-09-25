@@ -39,6 +39,8 @@
   <arg name="thresh_replan" default="1.5"/>
   <arg name="dyn_margin_rate" default="0.0"/>
   <arg name="dyn_static_min" default="0.2"/>
+  <arg name="dyn_search"    default="0"/>
+  <arg name="search_margin" default="0.2"/>
   
   <!-- Kich thuoc ban do va diem xuat phat: doi theo tung ban do Indoor -->
   <arg name="map_size_x" default="40.0"/>
@@ -105,6 +107,8 @@
     <arg name="thresh_replan" value="$(arg thresh_replan)"/>
     <arg name="dyn_margin_rate" value="$(arg dyn_margin_rate)"/>
     <arg name="dyn_static_min" value="$(arg dyn_static_min)"/>
+    <arg name="dyn_search"    value="$(arg dyn_search)"/>
+    <arg name="search_margin" value="$(arg search_margin)"/>
   </include>
 
   <!-- ===== Bộ thu thập chỉ số ===== -->

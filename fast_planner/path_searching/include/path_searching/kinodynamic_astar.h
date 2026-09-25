@@ -127,6 +127,7 @@ class KinodynamicAstar {
   double max_vel_, max_acc_;
   double w_time_, horizon_, lambda_heu_;
   int allocate_num_, check_num_;
+  double margin_;  // [Luan van - M6] bien an toan cua A* voi vat can dong
   double tie_breaker_;
   bool optimistic_;
 
@@ -143,8 +144,10 @@ class KinodynamicAstar {
   /* shot trajectory */
   vector<double> cubic(double a, double b, double c, double d);
   vector<double> quartic(double a, double b, double c, double d, double e);
+  /* [Luan van - M6] va cham voi vat can DONG tai thoi diem t; t < 0 = bo qua */
+  bool dynObsHit(const Eigen::Vector3d& pos, const double& t);
   bool computeShotTraj(Eigen::VectorXd state1, Eigen::VectorXd state2,
-                       double time_to_goal);
+                       double time_to_goal, bool dynamic = false, double time_start = -1.0);
   double estimateHeuristic(Eigen::VectorXd x1, Eigen::VectorXd x2,
                            double& optimal_time);
 

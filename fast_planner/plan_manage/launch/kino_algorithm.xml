@@ -45,6 +45,9 @@
   <!-- [Luan van - M5] ESDF toi thieu quy dao phai giu voi vat can tinh;
        vi pham thi ha trong so f_d roi giai lai -->
   <arg name="dyn_static_min" default="0.2"/>
+    <!-- [Luan van - M6] front-end A* xet vat can dong; search_margin la bien an toan cua no -->
+  <arg name="dyn_search"    default="0"/>
+  <arg name="search_margin" default="0.2"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -138,6 +141,7 @@
     <param name="manager/dynamic_environment" value="$(arg dynamic_env)" type="int"/>
     <param name="manager/dyn_avoid"           value="$(arg dyn_avoid)" type="int"/>
     <param name="manager/dyn_static_min"      value="$(arg dyn_static_min)" type="double"/>
+    <param name="manager/dyn_search"          value="$(arg dyn_search)" type="int"/>
     <!-- [Luan van - M4] bo du doan vat can dong -->
     <param name="prediction/enable"       value="$(arg dyn_obs)" type="bool"/>
     <param name="prediction/obj_num"      value="$(arg dyn_num)" type="int"/>
@@ -168,6 +172,7 @@
     <param name="search/margin" value="0.2" type="double"/>
     <param name="search/allocate_num" value="100000" type="int"/>
     <param name="search/check_num" value="5" type="int"/>
+    <param name="search/margin" value="$(arg search_margin)" type="double"/>
 
   <!-- trajectory optimization -->
     <param name="optimization/lambda1" value="10.0" type="double"/>

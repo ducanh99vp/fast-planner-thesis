@@ -22,6 +22,7 @@
 */
 
 #include <path_searching/kinodynamic_astar.h>
+#include <plan_env/box_dist.h>  // [Luan van - M6] signedDistToBox
 #include <sstream>
 #include <plan_env/sdf_map.h>
 
@@ -97,7 +98,7 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
       {
         // Check whether shot traj exist
         estimateHeuristic(cur_node->state, end_state, time_to_goal);
-        computeShotTraj(cur_node->state, end_state, time_to_goal);
+        computeShotTraj(cur_node->state, end_state, time_to_goal, dynamic, cur_node->time);
         if (init_search)
           ROS_ERROR("Shot in first search loop!");
       }
@@ -222,6 +223,12 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
             is_occ = true;
             break;
           }
+          // [Luan van - M6] vat can dong tai dung thoi diem nut se di qua diem nay
+          if (dynamic && dynObsHit(pos, cur_node->time + dt))
+          {
+            is_occ = true;
+            break;
+          }
         }
         if (is_occ)
         {
@@ -321,6 +328,22 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
   return NO_PATH;
 }
 
+/* [Luan van - M6] Kiem tra va cham voi vat can DONG tai mot thoi diem cu the.
+ * Dung chung giao dien trung lap voi f_d (EDTEnvironment::getDynObsBox), nen o
+ * M7a quy dao UAV hang xom tu dong duoc A* xet ma khong phai sua gi o day. */
+bool KinodynamicAstar::dynObsHit(const Eigen::Vector3d& pos, const double& t)
+{
+  if (t < 0.0) return false;
+  const int n = edt_environment_->getDynObsNum();
+  for (int k = 0; k < n; ++k)
+  {
+    Eigen::Vector3d c, h, g;
+    if (!edt_environment_->getDynObsBox(k, t, c, h)) continue;
+    if (signedDistToBox(pos, c, h, g) < margin_) return true;
+  }
+  return false;
+}
+
 void KinodynamicAstar::setParam(ros::NodeHandle& nh)
 {
   nh.param("search/max_tau", max_tau_, -1.0);
@@ -334,6 +357,10 @@ void KinodynamicAstar::setParam(ros::NodeHandle& nh)
   nh.param("search/lambda_heu", lambda_heu_, -1.0);
   nh.param("search/allocate_num", allocate_num_, -1);
   nh.param("search/check_num", check_num_, -1);
+  /* [Luan van - M6] bien an toan cua front-end voi vat can dong. Nho hon bien
+     cua back-end (dist_dyn0) vi A* chi can duong tho kha thi; back-end se noi
+     rong khoang cach sau. */
+  nh.param("search/margin", margin_, 0.3);
   nh.param("search/optimistic", optimistic_, true);
   tie_breaker_ = 1.0 + 1.0 / 10000;
 
@@ -393,7 +420,8 @@ double KinodynamicAstar::estimateHeuristic(Eigen::VectorXd x1, Eigen::VectorXd x
   return 1.0 * (1 + tie_breaker_) * cost;
 }
 
-bool KinodynamicAstar::computeShotTraj(Eigen::VectorXd state1, Eigen::VectorXd state2, double time_to_goal)
+bool KinodynamicAstar::computeShotTraj(Eigen::VectorXd state1, Eigen::VectorXd state2, double time_to_goal,
+                                       bool dynamic, double time_start)
 {
   /* ---------- get coefficient ---------- */
   const Vector3d p0 = state1.head(3);
@@ -456,6 +484,8 @@ bool KinodynamicAstar::computeShotTraj(Eigen::VectorXd state1, Eigen::VectorXd s
     {
       return false;
     }
+    // [Luan van - M6] doan noi thang toi dich cung phai xet vat can dong
+    if (dynamic && dynObsHit(coord, time_start + time)) return false;
   }
   coef_shot_ = coef;
   t_shot_ = t_d;
