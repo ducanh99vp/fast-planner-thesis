@@ -285,7 +285,12 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
             open_set_.push(pro_node);
 
             if (dynamic)
-              expanded_nodes_.insert(pro_id, pro_node->time, pro_node);
+                /* [Luan van - M6] LOI CUA MA NGUON GOC: cho vao `time` (double, thoi
+                 gian tuyet doi) trong khi ham nhan `int time_idx`, nen khoa bi cat
+                 thanh so giay tron; con `find` o tren tra bang chi so timeToIndex.
+                 Hai khoa khong bao gio khop => A* khong nhan ra nut da tham, cap nut
+                 moi lien tuc va can bo 100 000 nut tren ban do lon. */
+              expanded_nodes_.insert(pro_id, pro_node->time_idx, pro_node);
             else
               expanded_nodes_.insert(pro_id, pro_node);
 
