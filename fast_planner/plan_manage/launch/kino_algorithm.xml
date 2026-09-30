@@ -48,6 +48,13 @@
     <!-- [Luan van - M6] front-end A* xet vat can dong; search_margin la bien an toan cua no -->
   <arg name="dyn_search"    default="0"/>
   <arg name="search_margin" default="0.2"/>
+  <!-- [Luan van - M6] han muc thoi gian cho A* che do dong, giay. Qua han thi
+       lui ve A* tinh thay vi bo cuoc. <= 0 = tat han muc (hanh vi cu). -->
+  <arg name="search_max_time" default="0.05"/>
+  <arg name="dyn_recheck"      default="0"/>
+  <arg name="dyn_check_margin" default="0.3"/>
+  <arg name="t_dyn_check"      default="1.5"/>
+  <arg name="dyn_freeze"       default="0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -142,6 +149,10 @@
     <param name="manager/dyn_avoid"           value="$(arg dyn_avoid)" type="int"/>
     <param name="manager/dyn_static_min"      value="$(arg dyn_static_min)" type="double"/>
     <param name="manager/dyn_search"          value="$(arg dyn_search)" type="int"/>
+    <param name="manager/dyn_recheck"      value="$(arg dyn_recheck)" type="int"/>
+    <param name="manager/dyn_check_margin" value="$(arg dyn_check_margin)" type="double"/>
+    <param name="manager/t_dyn_check"      value="$(arg t_dyn_check)" type="double"/>
+    <param name="manager/dyn_freeze"       value="$(arg dyn_freeze)" type="int"/>
     <!-- [Luan van - M4] bo du doan vat can dong -->
     <param name="prediction/enable"       value="$(arg dyn_obs)" type="bool"/>
     <param name="prediction/obj_num"      value="$(arg dyn_num)" type="int"/>
@@ -167,6 +178,7 @@
     <param name="search/w_time" value="$(arg w_time)" type="double"/>
     <param name="search/horizon" value="4.5" type="double"/>
     <param name="search/lambda_heu" value="5.0" type="double"/>
+    <param name="search/max_time" value="$(arg search_max_time)" type="double"/>
     <param name="search/resolution_astar" value="0.1" type="double"/>
     <param name="search/time_resolution" value="0.8" type="double"/>
     <param name="search/margin" value="0.2" type="double"/>

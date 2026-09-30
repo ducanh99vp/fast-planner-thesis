@@ -27,6 +27,7 @@
 #include <plan_manage/planner_manager.h>
 #include <thread>
 #include <std_msgs/Float64MultiArray.h>
+#include <plan_env/box_dist.h>  // [Luan van - M6] signedDistToBox
 
 namespace fast_planner {
 
@@ -46,6 +47,12 @@ void FastPlannerManager::initPlanModules(ros::NodeHandle& nh) {
   nh.param("manager/dyn_avoid", pp_.dyn_avoid_, 0);  // [Luan van - M5]
   nh.param("manager/dyn_static_min", pp_.dyn_static_min_, 0.2);  // [Luan van - M5]
   nh.param("manager/dyn_search", pp_.dyn_search_, 0);  // [Luan van - M6]
+  nh.param("manager/dyn_freeze", pp_.dyn_freeze_, 0);  // [Luan van - M6]
+  /* [Luan van - M6] kiem tra lai quy dao voi du doan moi nhat. Co RIENG mot co
+     de moi so lieu M5/M6 tai lap duoc: bat len la doi hanh vi ca B0 co vat can dong. */
+  nh.param("manager/dyn_recheck", pp_.dyn_recheck_, 0);
+  nh.param("manager/dyn_check_margin", pp_.dyn_check_margin_, 0.3);
+  nh.param("manager/t_dyn_check", pp_.t_dyn_check_, 1.5);
   nh.param("manager/clearance_threshold", pp_.clearance_, -1.0);
   nh.param("manager/local_segment_length", pp_.local_traj_len_, -1.0);
   nh.param("manager/control_points_distance", pp_.ctrl_pt_dist, -1.0);
@@ -130,10 +137,26 @@ void FastPlannerManager::setGlobalWaypoints(vector<Eigen::Vector3d>& waypoints) 
   plan_data_.global_waypoints_ = waypoints;
 }
 
+/* [Luan van - M6] pos co nam trong bien an toan cua vat can dong nao tai thoi
+ * diem t (goc thoi gian cua bo du doan) khong. Dung chung giao dien trung lap
+ * voi f_d va A*, nen sang M7a nguon du lieu doi ma day khong phai sua. */
+bool FastPlannerManager::dynObsWillHit(const Eigen::Vector3d& pos, const double& t) {
+  const int n = edt_environment_->getDynObsNum();
+  for (int k = 0; k < n; ++k) {
+    Eigen::Vector3d c, h, g;
+    if (!edt_environment_->getDynObsBox(k, t, c, h)) continue;
+    if (signedDistToBox(pos, c, h, g) < pp_.dyn_check_margin_) return true;
+  }
+  return false;
+}
+
 bool FastPlannerManager::checkTrajCollision(double& distance) {
 
   double t_now = (ros::Time::now() - local_data_.start_time_).toSec();
-
+  /* [Luan van - M6] goc thoi gian tuyet doi, PHAI trung goc ma bo du doan dung */
+  const double t_abs0 = (local_data_.start_time_ - ObjHistory::global_start_time_).toSec();
+  /* [Luan van - M6] reactive: dong cung vat can o thoi diem KIEM TRA */
+  edt_environment_->setDynFreeze(pp_.dyn_freeze_ > 0, t_abs0 + t_now);
   double tm, tmp;
   local_data_.position_traj_.getTimeSpan(tm, tmp);
   Eigen::Vector3d cur_pt = local_data_.position_traj_.evaluateDeBoor(tm + t_now);
@@ -150,7 +173,15 @@ bool FastPlannerManager::checkTrajCollision(double& distance) {
       distance = radius;
       return false;
     }
-
+    /* [Luan van - M6] Va cham DU KIEN voi vat can dong: hoi vat can se o dau vao
+       dung thoi diem UAV toi diem nay. Ham nay duoc FSM goi o 20 Hz, nen mot lan
+       vat can doi huong la lap ke hoach lai ngay, khong phai doi UAV bay them
+       thresh_replan met (0.5 s o 1.5 m/s). Chi xet trong chan troi tin cay. */
+    if (pp_.dyn_recheck_ > 0 && fut_t < pp_.t_dyn_check_ &&
+        dynObsWillHit(fut_pt, t_abs0 + t_now + fut_t)) {
+      distance = radius;
+      return false;
+    }
     radius = (fut_pt - cur_pt).norm();
     fut_t += 0.02;
   }
@@ -195,17 +226,38 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
      goc ma bo du doan dung de khop da thuc, giong het f_d o back-end. */
   const bool   dyn_search = pp_.dyn_search_ > 0;
   const double t_search0  = (local_data_.start_time_ - ObjHistory::global_start_time_).toSec();
+  /* [Luan van - M6] reactive: dong cung vat can o thoi diem BAT DAU lap ke hoach */
+  edt_environment_->setDynFreeze(pp_.dyn_freeze_ > 0, t_search0);
 
-  int status = kino_path_finder_->search(start_pt, start_vel, start_acc, end_pt, end_vel, true,
-                                         dyn_search, t_search0);
+  /* [Luan van - M6] Che do dong that bai VI BAT KY LY DO GI - qua han muc
+     search/max_time, hay tim het ma khong ra duong trong khong-thoi-gian - thi
+     tim lai bang A* tinh (1.25 ms trung binh tren I4) truoc khi bo cuoc. Bo cuoc
+     = planner tra false = UAV bay tiep theo quy dao CU da loi thoi. Do la nguyen
+     nhan truc tiep cua moi va cham con lai: do duoc 10/10 luot co A* that bai
+     deu co va cham, Fisher p = 1.3e-08 tren 60 luot R1+R2+R3.
+     Dieu kien dyn_search de A* tinh thuan (B0, M3, M5) khong bi tim hai lan. */
+  auto searchWithBudget = [&](bool init) {
+    int st = kino_path_finder_->search(start_pt, start_vel, start_acc, end_pt, end_vel, init,
+                                       dyn_search, t_search0);
+    if (dyn_search && (st == KinodynamicAstar::TIMEOUT || st == KinodynamicAstar::NO_PATH)) {
+      cout << "[kino replan]: A* dong "
+           << (st == KinodynamicAstar::TIMEOUT ? "qua han muc" : "khong tim ra duong")
+           << ", lui ve A* tinh." << endl;
+      kino_path_finder_->reset();
+      st = kino_path_finder_->search(start_pt, start_vel, start_acc, end_pt, end_vel, init,
+                                     false, -1.0);
+    }
+    return st;
+  };
+
+  int status = searchWithBudget(true);
 
   if (status == KinodynamicAstar::NO_PATH) {
     cout << "[kino replan]: kinodynamic search fail!" << endl;
 
     // retry searching with discontinuous initial state
     kino_path_finder_->reset();
-    status = kino_path_finder_->search(start_pt, start_vel, start_acc, end_pt, end_vel, false,
-                                       dyn_search, t_search0);
+    status = searchWithBudget(false);
     if (status == KinodynamicAstar::NO_PATH) {
       cout << "[kino replan]: Can't find path." << endl;
       publishTiming((ros::Time::now() - t1).toSec() * 1000.0, 0.0, false);

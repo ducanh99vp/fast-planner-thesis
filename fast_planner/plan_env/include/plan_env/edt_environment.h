@@ -50,6 +50,10 @@ private:
   /* data */
   ObjPrediction obj_prediction_;
   DynObsList dyn_obs_;  // [Luan van - M6] nguon vat can dong trung lap
+  /* [Luan van - M6] che do REACTIVE: coi vat can dong nhu TINH tai vi tri o
+     thoi diem dyn_freeze_time_, bo qua moi truy van theo thoi diem tuong lai. */
+  bool   dyn_freeze_ = false;
+  double dyn_freeze_time_ = 0.0;
   ObjScale obj_scale_;
   double resolution_inv_;
   double distToBox(int idx, const Eigen::Vector3d& pos, const double& time);
@@ -69,6 +73,10 @@ public:
   /* [Luan van - M6] Dang ky danh sach vat can dong tu nguon bat ky. Khi da
      dang ky, getDynObsNum/getDynObsBox doc tu day thay vi tu ObjPrediction. */
   void setDynObsList(DynObsList list) { dyn_obs_ = list; }
+  /* [Luan van - M6] bat/tat che do reactive va dat moc thoi gian dong cung.
+     Noi goi phai cap nhat t moi lan dung: planner dat = luc bat dau lap ke
+     hoach, bo kiem tra 20 Hz dat = thoi diem kiem tra. */
+  void setDynFreeze(bool on, double t) { dyn_freeze_ = on; dyn_freeze_time_ = t; }
   void setObjScale(ObjScale scale);
   void getSurroundDistance(Eigen::Vector3d pts[2][2][2], double dists[2][2][2]);
   void interpolateTrilinear(double values[2][2][2], const Eigen::Vector3d& diff,

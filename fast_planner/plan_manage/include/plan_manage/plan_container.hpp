@@ -196,6 +196,11 @@ struct PlanParameters {
   int dyn_avoid_;  // [Luan van - M5] 1 = bat so hang chi phi vat can dong f_d
   double dyn_static_min_;  // [Luan van - M5] ESDF toi thieu quy dao phai giu voi vat can tinh
   int dyn_search_;         // [Luan van - M6] 1 = front-end A* xet vat can dong
+  int dyn_freeze_;         // [Luan van - M6] 1 = duong co so reactive (vat can dong coi nhu tinh)  
+  /* [Luan van - M6] kiem tra lai quy dao dang bay voi DU DOAN moi nhat o 20 Hz */
+  int dyn_recheck_;          // 1 = bat co che nay
+  double dyn_check_margin_;  // khoang cach toi thieu toi hop vat can dong (m)
+  double t_dyn_check_;       // chi kiem tra trong bay nhieu giay toi (chan troi tin cay)  
   /* processing time */
   double time_search_ = 0.0;
   double time_optimize_ = 0.0;

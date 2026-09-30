@@ -62,6 +62,8 @@ public:
   void setGlobalWaypoints(vector<Eigen::Vector3d>& waypoints);
 
   bool checkTrajCollision(double& distance);
+  /* [Luan van - M6] vi tri pos co cham vat can dong nao tai thoi diem t khong */
+  bool dynObsWillHit(const Eigen::Vector3d& pos, const double& t);
 
   PlanParameters pp_;
   LocalTrajData local_data_;

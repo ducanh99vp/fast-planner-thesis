@@ -34,6 +34,11 @@
   <arg name="dyn_static_min" default="0.2"/>
   <arg name="dyn_search"    default="0"/>
   <arg name="search_margin" default="0.2"/>
+  <arg name="search_max_time"  default="0.05"/>
+  <arg name="dyn_recheck"      default="0"/>
+  <arg name="dyn_check_margin" default="0.3"/>
+  <arg name="t_dyn_check"      default="1.5"/>
+  <arg name="dyn_freeze"       default="0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -117,6 +122,11 @@
     <arg name="dyn_static_min" value="$(arg dyn_static_min)"/>
     <arg name="dyn_search"    value="$(arg dyn_search)"/>
     <arg name="search_margin" value="$(arg search_margin)"/>
+    <arg name="search_max_time"  value="$(arg search_max_time)"/>
+    <arg name="dyn_recheck"      value="$(arg dyn_recheck)"/>
+    <arg name="dyn_check_margin" value="$(arg dyn_check_margin)"/>
+    <arg name="t_dyn_check"      value="$(arg t_dyn_check)"/>
+    <arg name="dyn_freeze"       value="$(arg dyn_freeze)"/>
 
     <arg name="takeoff_height"       value="$(arg takeoff_height)"/>
   </include>

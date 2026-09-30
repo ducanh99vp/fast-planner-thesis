@@ -128,6 +128,7 @@ class KinodynamicAstar {
   double w_time_, horizon_, lambda_heu_;
   int allocate_num_, check_num_;
   double margin_;  // [Luan van - M6] bien an toan cua A* voi vat can dong
+  double max_search_time_;  // [Luan van - M6] han muc thoi gian cho che do dong (s); <= 0 = tat
   double tie_breaker_;
   bool optimistic_;
 
@@ -160,7 +161,9 @@ class KinodynamicAstar {
   KinodynamicAstar(){};
   ~KinodynamicAstar();
 
-  enum { REACH_HORIZON = 1, REACH_END = 2, NO_PATH = 3, NEAR_END = 4 };
+  /* [Luan van - M6] TIMEOUT: rieng che do dong, qua han muc search/max_time.
+     KHAC NO_PATH: khong phai "khong co duong", chi la "chua kip tim". */
+  enum { REACH_HORIZON = 1, REACH_END = 2, NO_PATH = 3, NEAR_END = 4, TIMEOUT = 5 };
 
   /* main API */
   void setParam(ros::NodeHandle& nh);

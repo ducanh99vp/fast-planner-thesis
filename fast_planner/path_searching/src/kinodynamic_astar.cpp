@@ -79,6 +79,8 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
   PathNodePtr terminate_node = NULL;
   bool init_search = init;
   const int tolerance = ceil(1 / resolution_);
+  // [Luan van - M6] moc de do han muc thoi gian (chi dung o che do dong)
+  const ros::Time t_begin = ros::Time::now();
 
   while (!open_set_.empty())
   {
@@ -138,6 +140,16 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
     open_set_.pop();
     cur_node->node_state = IN_CLOSE_SET;
     iter_num_ += 1;
+
+    /* [Luan van - M6] Han muc thoi gian. CHI ap dung cho che do dong, de moi so
+       lieu A* tinh cua M3/M5 tai lap duoc y nguyen. Dat sau cac nhanh ket thuc
+       o tren nen mot nut da toi dich/chan troi van duoc tra ve du qua han. */
+    if (dynamic && max_search_time_ > 0.0 &&
+        (ros::Time::now() - t_begin).toSec() > max_search_time_)
+    {
+      std::cout << "dynamic search timeout after " << iter_num_ << " iters" << std::endl;
+      return TIMEOUT;
+    }
 
     double res = 1 / 2.0, time_res = 1 / 1.0, time_res_init = 1 / 20.0;
     Eigen::Matrix<double, 6, 1> cur_state = cur_node->state;
@@ -366,6 +378,9 @@ void KinodynamicAstar::setParam(ros::NodeHandle& nh)
      cua back-end (dist_dyn0) vi A* chi can duong tho kha thi; back-end se noi
      rong khoang cach sau. */
   nh.param("search/margin", margin_, 0.3);
+  /* [Luan van - M6] han muc thoi gian cho A* che do dong, giay. Qua han thi tra
+     TIMEOUT va planner_manager lui ve A* tinh. <= 0 tat han muc (hanh vi cu). */
+  nh.param("search/max_time", max_search_time_, 0.05);
   nh.param("search/optimistic", optimistic_, true);
   tie_breaker_ = 1.0 + 1.0 / 10000;
 

@@ -130,11 +130,14 @@ int EDTEnvironment::getDynObsNum() {
 /* [Luan van - M5] Hop du doan cua vat can idx tai thoi diem time. */
 bool EDTEnvironment::getDynObsBox(int idx, const double& time, Eigen::Vector3d& center,
                                   Eigen::Vector3d& half) {
+  /* [Luan van - M6] duong co so reactive: mot cho duy nhat quyet dinh, nen ca
+     f_d, A* va bo kiem tra 20 Hz deu dong cung cung mot moc, khong the lech nhau. */
+  const double t = dyn_freeze_ ? dyn_freeze_time_ : time;
   if (dyn_obs_) {  // [Luan van - M6] nguon trung lap
     if (idx < 0 || idx >= int(dyn_obs_->size())) return false;
     const DynObs& o = dyn_obs_->at(idx);
     if (!o.valid || !o.valid()) return false;
-    center = o.center(time);
+    center = o.center(t);
     half   = o.half();
     return true;
   }                                 
@@ -142,7 +145,7 @@ bool EDTEnvironment::getDynObsBox(int idx, const double& time, Eigen::Vector3d& 
   if (idx < 0 || idx >= int(obj_prediction_->size())) return false;
   if (!obj_prediction_->at(idx).valid()) return false;
 
-  center = obj_prediction_->at(idx).evaluateConstVel(time);
+  center = obj_prediction_->at(idx).evaluateConstVel(t);
   half   = 0.5 * obj_scale_->at(idx);
   return true;
 }
