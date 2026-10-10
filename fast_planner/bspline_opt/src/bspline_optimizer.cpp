@@ -37,6 +37,7 @@ const int BsplineOptimizer::ENDPOINT    = (1 << 3);
 const int BsplineOptimizer::GUIDE       = (1 << 4);
 const int BsplineOptimizer::WAYPOINTS   = (1 << 6);
 const int BsplineOptimizer::DYNAMIC     = (1 << 7);  // [Luan van - M5]
+const int BsplineOptimizer::LENGTH      = (1 << 8);  // [Luan van - M6]
 
 
 const int BsplineOptimizer::GUIDE_PHASE = BsplineOptimizer::SMOOTHNESS | BsplineOptimizer::GUIDE;
@@ -57,12 +58,17 @@ void BsplineOptimizer::setParam(ros::NodeHandle& nh) {
   /* [Luan van - M5] vat can dong. lambda9 = 0 lam f_d tro thanh vo hieu,
      tuc la quay ve dung hanh vi cua B0 — do la kieu hong an toan. */
   nh.param("optimization/lambda9", lambda9_, 0.0);
+  /* [Luan van - M6] trong so do dai duong di. 0 = tat (hanh vi cu khong doi). */
+  nh.param("optimization/lambda10", lambda10_, 0.0);
   nh.param("optimization/dist_dyn0", dist_dyn0_, 0.7);
   nh.param("optimization/t_dyn_max", t_dyn_max_, 2.0);
   /* [Luan van - M5] bien an toan tang tuyen tinh theo thoi diem cua diem dieu khien.
      0 = bien co dinh (hanh vi B1/B2). Sai so du doan do tren I1 tang ~0.5 m/s
      (trung binh) va ~1.2 m/s (p95). */
   nh.param("optimization/dyn_margin_rate", dyn_margin_rate_, 0.0);
+  /* [Luan van - M6] Buoc lay mau DUONG CONG cho f_d. 0 = che do cu (kiem tai
+     he so dieu khien), nen moi so lieu M3/M5/M6 giu nguyen khong doi. */
+  nh.param("optimization/dyn_sample_dt", dyn_sample_dt_, 0.0);
   dyn_scale_   = 1.0;
   dyn_start_t_ = 0.0;
   nh.param("optimization/max_vel", max_vel_, -1.0);
@@ -112,6 +118,7 @@ void BsplineOptimizer::setCostFunction(const int& cost_code) {
   if (cost_function_ & ENDPOINT) cost_str += " endpt |";
   if (cost_function_ & GUIDE) cost_str += " guide |";
   if (cost_function_ & WAYPOINTS) cost_str += " waypt |";
+  if (cost_function_ & LENGTH) cost_str += " length |";
 
   ROS_INFO_STREAM("cost func: " << cost_str);
 }
@@ -149,6 +156,7 @@ void BsplineOptimizer::optimize() {
   g_waypoints_.resize(pt_num);
   g_guide_.resize(pt_num);
   g_dynamic_.resize(pt_num);
+  g_length_.resize(pt_num);
 
   if (cost_function_ & ENDPOINT) {
     variable_num_ = dim_ * (pt_num - order_);
@@ -283,6 +291,80 @@ void BsplineOptimizer::calcDynamicCost(const vector<Eigen::Vector3d>& q, double&
 
   int end_idx = (cost_function_ & ENDPOINT) ? q.size() : q.size() - order_;
 
+  /* [Luan van - M6] CHE DO LAY MAU DUONG CONG.
+   *
+   * Vi sao can: vong lap cu hoi khoang cach tai HE SO q[i], moc Greville
+   * t_i = (i-1)*dt. He so tu do dau tien la q[order_] voi moc 0.667 s, nen moi
+   * xung dot trong 0.667 s dau KHONG sinh gradient nao — co che ne bi mu, chu
+   * khong phai bi cam. Ngoai ra che do cu chi kiem 3 moc (0.667/1.0/1.333 s),
+   * giua hai moc vat can dich duoc 0.27 m — gan bang nua kich thuoc hop cua no,
+   * nen co the lot qua quy dao ma khong moc nao bat duoc.
+   *
+   * Cach lam: voi moi moc t = 0, sdt, 2*sdt, ... <= t_cap, tinh diem TREN
+   * duong cong bang co so B-spline deu bac 3:
+   *   s = t/dt,  a = floor(s),  u = s - a
+   *   P(t) = b0*q[a] + b1*q[a+1] + b2*q[a+2] + b3*q[a+3]
+   *   b0 = (1-u)^3/6                b1 = (3u^3 - 6u^2 + 4)/6
+   *   b2 = (-3u^3 + 3u^2 + 3u+1)/6  b3 = u^3/6
+   * Tai u=0 co [1/6, 4/6, 1/6, 0], dung bang P(0) = (q0 + 4q1 + q2)/6 — tuc
+   * vi tri hien tai cua UAV. Tong co so = 1 (sai so 1.1e-16).
+   *
+   * Gradient phan ve 4 he so theo dung trong so co so (quy tac chuoi):
+   *   d(cost)/dq[a+m] = 2*w_samp*(d - d0) * dd/dP * b[m]
+   * He so bi khoa van nhan phan cua chung nhung combineCost chi doc tu order_
+   * tro len, nen bi bo di dung nhu truoc. Ti le luc CON LAI tang dan theo t:
+   *   0 s: 0%   0.2 s: 3.6%   0.333 s: 16.7%   0.5 s: 50%   0.667 s: 83.3%
+   * — vach da cua che do cu tro thanh duong doc.
+   *
+   * w_samp = sdt/dt bien tong thanh xap xi tich phan theo thoi gian, cung don
+   * vi voi che do cu. Khong co no, f_d lon gap 3.73 lan (do 16 moc thay vi 3)
+   * nen lambda9 = 5.0 hoa ra nang nhu 18.7 — phep so A/B se bi nhieu boi trong
+   * so, khong con tach duoc nguyen nhan. Co w_samp thi ti le con x1.12, va gan
+   * nhu KHONG doi theo sdt (x1.07 / x1.12 / x1.19 cho 0.05 / 0.1 / 0.167 s),
+   * nen doi buoc lay mau khong phai chinh lai lambda9.
+   *
+   * Kiem chung gradient bang sai phan trung tam: sai so 1.79e-09 / 207 phep.
+   * Chi phi: 745 us cho 300 vong (4 vat can, sdt = 0.1 s) = 15% han muc 5 ms. */
+  if (dyn_sample_dt_ > 0.0) {
+    const double w_samp = dyn_sample_dt_ / bspline_interval_;
+    const double t_cap =
+        std::min(t_dyn_max_, double(int(q.size()) - 4) * bspline_interval_);
+    if (t_cap < 0.0) return;
+    const int n_samp = int(std::floor(t_cap / dyn_sample_dt_)) + 1;
+
+    for (int si = 0; si < n_samp; ++si) {
+      const double t = double(si) * dyn_sample_dt_;
+      const double s = t / bspline_interval_;
+      const int    a = int(std::floor(s));
+      const double u = s - double(a);
+      if (a < 0 || a + 3 >= int(q.size())) continue;
+
+      const double u2 = u * u, u3 = u2 * u;
+      double b[4];
+      b[0] = (1.0 - 3.0 * u + 3.0 * u2 -       u3) / 6.0;
+      b[1] = (4.0           - 6.0 * u2 + 3.0 * u3) / 6.0;
+      b[2] = (1.0 + 3.0 * u + 3.0 * u2 - 3.0 * u3) / 6.0;
+      b[3] =                                   u3  / 6.0;
+
+      const Eigen::Vector3d p =
+          b[0] * q[a] + b[1] * q[a + 1] + b[2] * q[a + 2] + b[3] * q[a + 3];
+      const double d0 = dist_dyn0_ + dyn_margin_rate_ * t;
+
+      for (int k = 0; k < n_obs; k++) {
+        Eigen::Vector3d center, half, dist_grad;
+        if (!edt_environment_->getDynObsBox(k, dyn_start_t_ + t, center, half)) continue;
+
+        double dist = signedDistToBox(p, center, half, dist_grad);
+        if (dist < d0) {
+          cost += w_samp * pow(dist - d0, 2);
+          const Eigen::Vector3d g = 2.0 * w_samp * (dist - d0) * dist_grad;
+          for (int m = 0; m < 4; ++m) gradient[a + m] += b[m] * g;
+        }
+      }
+    }
+    return;
+  }
+
   for (int i = order_; i < end_idx; i++) {
     double t_i = (i - 1) * bspline_interval_;
     if (t_i > t_dyn_max_) break;  // xa hon chan troi tin cay cua du doan van toc deu
@@ -300,6 +382,42 @@ void BsplineOptimizer::calcDynamicCost(const vector<Eigen::Vector3d>& q, double&
         gradient[i] += 2.0 * (dist - d0) * dist_grad;
       }
     }
+  }
+}
+
+/* [Luan van - M6] Chi phi DO DAI duong di, do bang do dai da tuyen cua cac diem
+ * dieu khien: f_L = sum ||Q_{i+1} - Q_i||.
+ *
+ * Vi sao can: thoi luong quy dao da bi an dinh TRUOC khi toi uu hoa, va hien
+ * khong co so hang nao phat do dai. Nen bo toi uu KHONG phan biet giua "lui lai
+ * roi quay len", "lieng mot vong", va "truot sang ben" — ca ba cung thoi luong
+ * va cung tranh duoc vat can. Do do no chon theo gradient cua f_d, ma gradient
+ * do xuyen tam nen khi vat can lao thang vao mat thi huong duy nhat la LUI.
+ * So hang nay pha vo the bat phan do: duong ngan nhat tranh duoc vat can la
+ * truot sang ben, nen bo toi uu tu chon phuong an do.
+ * Diem then chot: duong ngan hon van kha thi trong thoi luong co dinh, vi gioi
+ * han van toc la gioi han TREN — bay cham hon khong vi pham gi.
+ *
+ * Gradient giai tich: voi doan e = Q_{i+1} - Q_i, d = ||e||, u = e/d thi
+ *   d(f_L)/dQ_i = -u   va   d(f_L)/dQ_{i+1} = +u
+ * Kiem chung bang sai phan trung tam: sai so lon nhat 1.72e-08 tren 13 phep thu.
+ * Chan d < 1e-6 de khong chia cho 0 khi hai diem trung nhau. */
+void BsplineOptimizer::calcLengthCost(const vector<Eigen::Vector3d>& q, double& cost,
+                                      vector<Eigen::Vector3d>& gradient) {
+  cost = 0.0;
+  Eigen::Vector3d zero(0, 0, 0);
+  std::fill(gradient.begin(), gradient.end(), zero);
+
+  // bat dau tu order_ - 1 de tinh ca doan noi diem bi khoa voi diem tu do dau tien
+  const int end_idx = (cost_function_ & ENDPOINT) ? int(q.size()) : int(q.size()) - order_;
+  for (int i = order_ - 1; i + 1 < end_idx; ++i) {
+    Eigen::Vector3d e = q[i + 1] - q[i];
+    const double    d = e.norm();
+    if (d < 1e-6) continue;
+    cost += d;
+    const Eigen::Vector3d u = e / d;
+    gradient[i] -= u;
+    gradient[i + 1] += u;
   }
 }
 
@@ -461,6 +579,7 @@ void BsplineOptimizer::combineCost(const std::vector<double>& x, std::vector<dou
   double f_smoothness, f_distance, f_feasibility, f_endpoint, f_guide, f_waypoints;
   f_smoothness = f_distance = f_feasibility = f_endpoint = f_guide = f_waypoints = 0.0;
   double f_dynamic = 0.0;  // [Luan van - M5]
+  double f_length  = 0.0;  // [Luan van - M6]
 
   if (cost_function_ & SMOOTHNESS) {
     calcSmoothnessCost(g_q_, f_smoothness, g_smoothness_);
@@ -504,6 +623,12 @@ void BsplineOptimizer::combineCost(const std::vector<double>& x, std::vector<dou
     f_combine += w9 * f_dynamic;
     for (int i = 0; i < variable_num_ / dim_; i++)
       for (int j = 0; j < dim_; j++) grad[dim_ * i + j] += w9 * g_dynamic_[i + order_](j);
+  }
+  if ((cost_function_ & LENGTH) && lambda10_ > 0.0) {  // [Luan van - M6]
+    calcLengthCost(g_q_, f_length, g_length_);
+    f_combine += lambda10_ * f_length;
+    for (int i = 0; i < variable_num_ / dim_; i++)
+      for (int j = 0; j < dim_; j++) grad[dim_ * i + j] += lambda10_ * g_length_[i + order_](j);
   }
 
   /*  print cost  */

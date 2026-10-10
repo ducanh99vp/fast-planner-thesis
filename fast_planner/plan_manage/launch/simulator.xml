@@ -23,6 +23,7 @@
   <arg name="dyn_interval" default="2.5"/>
   <!-- [Luan van - M5] gieo lai van toc khi vat can ket qua ngan nay (0 = tat) -->
   <arg name="dyn_unstick" default="0.0"/>
+  <arg name="dyn_axis_only" default="false"/>
   <arg name="dyn_seed" default="1"/>
 
   <group unless="$(arg use_pcd)">
@@ -137,6 +138,7 @@
     <param name="obj_generator/unstick_time" value="$(arg dyn_unstick)"/>
     <param name="obj_generator/seed"     value="$(arg dyn_seed)"/>
     <param name="obj_generator/height"   value="3.0"/>
+    <param name="obj_generator/axis_only" value="$(arg dyn_axis_only)" type="bool"/>
   </node>
 
 </launch>

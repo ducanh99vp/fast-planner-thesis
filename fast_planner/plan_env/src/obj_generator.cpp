@@ -99,6 +99,18 @@ double _unstick_time;
 vector<Eigen::Vector3d> stuck_pos;
 vector<double> stuck_since;
 
+/* [Luan van - M6] Kich ban doi chung: vat can di THANG DEU theo DUNG MOT TRUC
+ * (x hoac y), toc do co dinh _vel, qua lai giua hai bien. Khong co duong cheo,
+ * khong doi huong ngau nhien. Dung lam co so truoc khi test kich ban ngau nhien. */
+bool _axis_only;
+vector<int> axis_of;   // 0 = truc x, 1 = truc y, -1 = khong rang buoc
+
+Eigen::Vector3d velTrenTruc(int ax, double dau, double toc_do) {
+  Eigen::Vector3d v = Eigen::Vector3d::Zero();
+  v(ax) = dau * toc_do;
+  return v;
+}
+
 random_device rd;
 default_random_engine eng(rd());
 uniform_real_distribution<double> rand_pos;
@@ -144,6 +156,8 @@ int main(int argc, char** argv) {
   if (_seed >= 0) eng.seed(_seed);
   node.param("obj_generator/static_margin", _static_margin, 0.1);
   node.param("obj_generator/height", _height, -1.0);
+  // [Luan van - M6] 1 = chi di thang deu theo truc x hoac y, xen ke theo chi so
+  node.param("obj_generator/axis_only", _axis_only, false);
 
   obj_pub = node.advertise<visualization_msgs::Marker>("/dynamic/obj", 10);
   for (int i = 0; i < obj_num; ++i) {
@@ -191,7 +205,16 @@ int main(int argc, char** argv) {
       pos = Eigen::Vector3d(rand_pos(eng), rand_pos_y(eng), pz);
       if (!hitStatic(pos, scale, push)) break;
     }
-    Eigen::Vector3d vel(rand_vel(eng), rand_vel(eng), 0.0);
+    // [Luan van - M6] xen ke truc: vat can chan di theo x, le di theo y
+    Eigen::Vector3d vel;
+    if (_axis_only) {
+      int ax = i % 2;
+      axis_of.push_back(ax);
+      vel = velTrenTruc(ax, rand_vel(eng) >= 0.0 ? 1.0 : -1.0, _vel);
+    } else {
+      axis_of.push_back(-1);
+      vel = Eigen::Vector3d(rand_vel(eng), rand_vel(eng), 0.0);
+    }
     Eigen::Vector3d color(rand_color(eng), rand_color(eng), rand_color(eng));
     // [Luan van - M4] khong xoay (yaw_dot = 0) thi dat yaw = 0: hop song song truc toa do,
     // khop voi mo hinh hop cua planner (distToBox) va phep kiem va cham o tren
@@ -248,7 +271,10 @@ void updateCallback(const ros::TimerEvent& e) {
       vz = 0.0;
       yd = rand_yaw_dot(eng);
 
-      obj_models[i].setInput(Eigen::Vector3d(vx, vy, vz));
+      if (_axis_only)  // [Luan van - M6] chi dao chieu tren truc, khong doi truc
+        obj_models[i].setInput(velTrenTruc(axis_of[i], vx >= 0.0 ? 1.0 : -1.0, _vel));
+      else
+        obj_models[i].setInput(Eigen::Vector3d(vx, vy, vz));
       obj_models[i].setYawDot(yd);
     }
     time_change = time_now;
@@ -265,7 +291,11 @@ void updateCallback(const ros::TimerEvent& e) {
     if (hitStatic(obj_models[i].getPosition(), obj_models[i].getScale(), push)) {
       obj_models[i].setPosition(p_prev);
       Eigen::Vector3d v = obj_models[i].getVelocity();
-      if (push.norm() < 0.5) v = -v;                              // khong ro huong: quay dau
+      if (_axis_only) {
+        // [Luan van - M6] dao chieu tren dung truc do; phan xa guong o goc tuong
+        // se sinh ra thanh phan cheo, nen khong dung o kich ban nay
+        v = velTrenTruc(axis_of[i], v(axis_of[i]) >= 0.0 ? -1.0 : 1.0, _vel);
+      } else if (push.norm() < 0.5) v = -v;                       // khong ro huong: quay dau
       else if (v.dot(push) < 0.0) v -= 2.0 * v.dot(push) * push;  // phan xa guong
       obj_models[i].setVelocity(v(0), v(1), v(2));
     }
@@ -284,7 +314,11 @@ void updateCallback(const ros::TimerEvent& e) {
         stuck_pos[i] = p;
         stuck_since[i] = tn;
       } else if (tn - stuck_since[i] > _unstick_time) {
-        obj_models[i].setInput(Eigen::Vector3d(rand_vel(eng), rand_vel(eng), 0.0));
+        if (_axis_only)  // [Luan van - M6] go ket nhung van giu tren truc
+          obj_models[i].setInput(
+              velTrenTruc(axis_of[i], rand_vel(eng) >= 0.0 ? 1.0 : -1.0, _vel));
+        else
+          obj_models[i].setInput(Eigen::Vector3d(rand_vel(eng), rand_vel(eng), 0.0));
         stuck_pos[i] = p;
         stuck_since[i] = tn;
       }

@@ -46,6 +46,7 @@ public:
   static const int GUIDE;
   static const int WAYPOINTS;
   static const int DYNAMIC;  // [Luan van - M5] vat can dong
+  static const int LENGTH;   // [Luan van - M6] do dai duong di
 
   static const int GUIDE_PHASE;
   static const int NORMAL_PHASE;
@@ -110,6 +111,7 @@ private:
   double lambda7_;                // waypoints cost weight
   double lambda8_;                // acc smoothness
   double lambda9_;                // [Luan van - M5] trong so vat can dong
+  double lambda10_;               // [Luan van - M6] trong so do dai duong di
                                   //
   double dist0_;                  // safe distance
   double dist_dyn0_;              // [Luan van - M5] khoang an toan voi vat can dong
@@ -117,6 +119,7 @@ private:
   double dyn_margin_rate_;        // [Luan van - M5] bien an toan tang theo t (m/s)
   double dyn_scale_;              // [Luan van - M5] he so nhan tam thoi cho lambda9
   double dyn_start_t_;            // [Luan van - M5] goc thoi gian tra bo du doan
+  double dyn_sample_dt_;          // [Luan van - M6] buoc lay mau duong cong (s); <=0 = che do cu
 
   double max_vel_, max_acc_;      // dynamic limits
   double visib_min_;              // threshold of visibility
@@ -139,6 +142,7 @@ private:
   vector<Eigen::Vector3d> g_guide_;
   vector<Eigen::Vector3d> g_waypoints_;
   vector<Eigen::Vector3d> g_dynamic_;
+  vector<Eigen::Vector3d> g_length_;
 
   int                 variable_num_;   // optimization variables
   int                 iter_num_;       // iteration of the solver
@@ -169,6 +173,9 @@ private:
                          vector<Eigen::Vector3d>& gradient);
   void calcDynamicCost(const vector<Eigen::Vector3d>& q, double& cost,
                        vector<Eigen::Vector3d>& gradient);
+  /* [Luan van - M6] Chi phi do dai duong di (do dai da tuyen diem dieu khien). */
+  void calcLengthCost(const vector<Eigen::Vector3d>& q, double& cost,
+                      vector<Eigen::Vector3d>& gradient);
   void calcViewCost(const vector<Eigen::Vector3d>& q, double& cost, vector<Eigen::Vector3d>& gradient);
   bool isQuadratic();
 

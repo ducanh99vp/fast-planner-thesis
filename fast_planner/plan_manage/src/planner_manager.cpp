@@ -303,6 +303,10 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
     cost_function |= BsplineOptimizer::ENDPOINT;
   }
 
+  /* [Luan van - M6] So hang do dai duong di. lambda10 = 0 thi vo hieu luc hoan
+     toan, nen bat co nay vo dieu kien van giu nguyen moi so lieu M3/M5/M6 cu. */
+  cost_function |= BsplineOptimizer::LENGTH;
+
   /* [Luan van - M5] Tranh vat can TINH la rang buoc bat buoc, tranh vat can DONG
      chi la muc tieu co gang. Khi bien an toan dong doi rong hon khong gian con
      lai, bo giai day quy dao vao tuong (da do: doi 2.2 m tren khoang trong

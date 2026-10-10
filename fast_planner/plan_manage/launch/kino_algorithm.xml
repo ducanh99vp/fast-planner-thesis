@@ -21,6 +21,7 @@
   <arg name="ctrl_pt_dist"   default="0.5"/>
   <arg name="w_time"         default="10.0"/>
   <arg name="lambda2"        default="5.0"/>
+  <arg name="lambda4"        default="0.01"/>
   <arg name="dist0"          default="0.4"/>
     <!-- [Luan van - M3] 3 tham so bo Indoor, truyen tu dong lenh de chay so sanh P0/P1 -->
   <arg name="inflation"    default="0.099"/>
@@ -36,12 +37,15 @@
        dang sai goc thoi gian) de B0 van tai lap duoc bang dyn_avoid:=0. -->
   <arg name="dyn_avoid"  default="0"/>
   <arg name="lambda9"    default="5.0"/>
+  <arg name="lambda10"   default="0.0"/>
   <arg name="dist_dyn0"  default="0.7"/>
   <arg name="t_dyn_max"  default="2.0"/>
   <!-- [Luan van - M5] lap lai sau moi bay nhieu MET (khong phai giay) -->
   <arg name="thresh_replan" default="1.5"/>  
   <!-- [Luan van - M5] bien an toan vat can dong tang theo t: d0 + rate*t (m/s) -->
   <arg name="dyn_margin_rate" default="0.0"/>
+  <!-- [Luan van - M6] buoc lay mau duong cong cho f_d (s); 0 = kiem tai he so -->
+  <arg name="dyn_sample_dt" default="0.0"/>
   <!-- [Luan van - M5] ESDF toi thieu quy dao phai giu voi vat can tinh;
        vi pham thi ha trong so f_d roi giai lai -->
   <arg name="dyn_static_min" default="0.2"/>
@@ -190,13 +194,15 @@
     <param name="optimization/lambda1" value="10.0" type="double"/>
     <param name="optimization/lambda2" value="$(arg lambda2)" type="double"/>
     <param name="optimization/lambda3" value="0.00001" type="double"/>
-    <param name="optimization/lambda4" value="0.01" type="double"/>
+    <param name="optimization/lambda4" value="$(arg lambda4)" type="double"/>
     <param name="optimization/lambda7" value="100.0" type="double"/>
     <param name="optimization/dist0" value="$(arg dist0)" type="double"/>
     <param name="optimization/lambda9"   value="$(arg lambda9)" type="double"/>
+    <param name="optimization/lambda10"  value="$(arg lambda10)" type="double"/>
     <param name="optimization/dist_dyn0" value="$(arg dist_dyn0)" type="double"/>
     <param name="optimization/t_dyn_max" value="$(arg t_dyn_max)" type="double"/>
     <param name="optimization/dyn_margin_rate" value="$(arg dyn_margin_rate)" type="double"/>
+    <param name="optimization/dyn_sample_dt" value="$(arg dyn_sample_dt)" type="double"/>
     <param name="optimization/max_vel" value="$(arg max_vel)" type="double"/>
     <param name="optimization/max_acc" value="$(arg max_acc)" type="double"/>
 

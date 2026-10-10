@@ -11,6 +11,7 @@
   <arg name="ctrl_pt_dist"   default="0.5"/>
   <arg name="w_time"         default="10.0"/>
   <arg name="lambda2"        default="5.0"/>
+  <arg name="lambda4"        default="0.01"/>
   <arg name="dist0"          default="0.4"/>
   <arg name="inflation"    default="0.099"/>
   <arg name="local_range"  default="5.5"/>
@@ -23,14 +24,17 @@
   <arg name="dyn_vel"  default="0.8"/>
   <arg name="dyn_interval" default="2.5"/>
   <arg name="dyn_unstick" default="0.0"/>
+  <arg name="dyn_axis_only" default="false"/>
   <arg name="dyn_seed" default="1"/>
   <!-- [Luan van - M5] bat so hang chi phi vat can dong f_d -->
   <arg name="dyn_avoid"  default="0"/>
   <arg name="lambda9"    default="5.0"/>
+  <arg name="lambda10"   default="0.0"/>
   <arg name="dist_dyn0"  default="0.7"/>
   <arg name="t_dyn_max"  default="2.0"/>
   <arg name="thresh_replan" default="1.5"/>
   <arg name="dyn_margin_rate" default="0.0"/>
+  <arg name="dyn_sample_dt" default="0.0"/>
   <arg name="dyn_static_min" default="0.2"/>
   <arg name="dyn_search"    default="0"/>
   <arg name="search_margin" default="0.2"/>
@@ -106,6 +110,7 @@
     <arg name="ctrl_pt_dist"   value="$(arg ctrl_pt_dist)"/>
     <arg name="w_time"         value="$(arg w_time)"/>
     <arg name="lambda2"        value="$(arg lambda2)"/>
+    <arg name="lambda4"        value="$(arg lambda4)"/>
     <arg name="dist0"          value="$(arg dist0)"/>
     <arg name="inflation"    value="$(arg inflation)"/>
     <arg name="local_range"  value="$(arg local_range)"/>
@@ -115,10 +120,12 @@
     <arg name="dyn_num"      value="$(arg dyn_num)"/>
     <arg name="dyn_avoid"    value="$(arg dyn_avoid)"/>
     <arg name="lambda9"      value="$(arg lambda9)"/>
+    <arg name="lambda10"     value="$(arg lambda10)"/>
     <arg name="dist_dyn0"    value="$(arg dist_dyn0)"/>
     <arg name="t_dyn_max"    value="$(arg t_dyn_max)"/>
     <arg name="thresh_replan" value="$(arg thresh_replan)"/>
     <arg name="dyn_margin_rate" value="$(arg dyn_margin_rate)"/>
+    <arg name="dyn_sample_dt" value="$(arg dyn_sample_dt)"/>
     <arg name="dyn_static_min" value="$(arg dyn_static_min)"/>
     <arg name="dyn_search"    value="$(arg dyn_search)"/>
     <arg name="search_margin" value="$(arg search_margin)"/>
@@ -165,6 +172,7 @@
     <arg name="dyn_vel"  value="$(arg dyn_vel)"/>
     <arg name="dyn_interval" value="$(arg dyn_interval)"/>
     <arg name="dyn_unstick" value="$(arg dyn_unstick)"/>
+    <arg name="dyn_axis_only" value="$(arg dyn_axis_only)"/>
     <arg name="dyn_seed" value="$(arg dyn_seed)"/>
 
     <arg name="odometry_topic" value="$(arg odom_topic)" />
