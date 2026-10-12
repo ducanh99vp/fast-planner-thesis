@@ -45,7 +45,14 @@ MAPS = {
     "I4-R2": dict(pcd="I4", size=(26.0, 16.0, 4.5), start=(-10.0, -5.0), goals=[(-10.0, 5.0)]),
     "I4-R3": dict(pcd="I4", size=(26.0, 16.0, 4.5), start=(10.0, -5.0), goals=[(10.0, 5.0)]),
     # I5: ngo cut chu U kin toi tran, mieng quay ve xuat phat — cuc tieu dia phuong
-    "I5": dict(pcd="I5", size=(21.0, 16.0, 4.5), start=(-8.0, 0.0), goals=[(8.0, 0.0)])
+    "I5": dict(pcd="I5", size=(21.0, 16.0, 4.5), start=(-8.0, 0.0), goals=[(8.0, 0.0)]),
+    # [CD2] Ban do NGOAI TROI cua HKUST (random_forest). pcd=None => use_pcd:=false.
+    #   60 cot vuong CAO 3 m (khong bay vuot duoc) + 10 vanh tron.
+    #   Vat can dong don vao hanh lang |y| <= 3 m quanh duong bay y = 0
+    #   (lan thu voi |y| <= 8: UAV mu van sach 80% luot -> qua thua).
+    "OUT": dict(pcd=None, size=(40.0, 20.0, 5.0), start=(-19.0, 0.0),
+                goals=[(19.0, 0.0)],
+                extra=["p_num:=60", "c_num:=10", "p_hmin:=3.0", "dyn_xy_y:=3.0"])
 }
 
 # Tham so bay chung cho moi ban do
@@ -73,8 +80,9 @@ CONFIGS = {
 def map_args(map_name):
     """Tham so roslaunch rieng cua mot ban do Indoor."""
     m = MAPS[map_name]
-    return ["use_pcd:=true",
-            "map_file:=%s/%s.pcd" % (MAPS_DIR, m["pcd"]),
+    base = (["use_pcd:=false"] if m.get("pcd") is None else
+            ["use_pcd:=true", "map_file:=%s/%s.pcd" % (MAPS_DIR, m["pcd"])])
+    return base + m.get("extra", []) + [
             "map_size_x:=%.1f" % m["size"][0],
             "map_size_y:=%.1f" % m["size"][1],
             "map_size_z:=%.1f" % m["size"][2],
@@ -101,6 +109,8 @@ def run_one(map_name, config, trial, goal, out_csv, timeout, extra):
         "goal_x:=%.3f" % goal[0],
         "goal_y:=%.3f" % goal[1],
         "out_csv:=%s" % out_csv,
+        # [CD2] moi file ket qua di kem MOT file cham tran cung ten, duoi _enc
+        "enc_csv:=%s" % (os.path.splitext(out_csv)[0] + "_enc.csv"),
         "timeout:=%.1f" % timeout,
     ] + map_args(map_name) + CONFIGS[config] + list(extra)  # extra dat cuoi de ghi de duoc
 
@@ -150,6 +160,10 @@ def main():
     ap.add_argument("--out", default=DEFAULT_CSV)
     ap.add_argument("--dry-run", action="store_true",
                     help="chỉ in ra lịch chạy, không thực thi")
+    # [CD2] vat can dong: so luong; moi luot mot hat giong = so luot + 1 nen
+    # hai phuong an chay cung --trials se gap DUNG cung mot kich ban
+    ap.add_argument("--dyn", type=int, default=0,
+                    help="so vat can dong (0 = tat)")
     ap.add_argument("--extra", nargs="*", default=[],
                     help="tham số roslaunch bổ sung, ví dụ dynamic_env:=1")
     a = ap.parse_args()
@@ -157,6 +171,8 @@ def main():
     for m in a.maps:
         if m not in MAPS:
             sys.exit("Ban do %s chua co trong MAPS" % m)
+        if MAPS[m].get("pcd") is None:
+            continue                       # [CD2] ban do sinh ngau nhien
         pcd = "%s/%s.pcd" % (MAPS_DIR, MAPS[m]["pcd"])
         if not os.path.isfile(pcd):
             sys.exit("Khong thay file %s - hay sinh ban do truoc" % pcd)
@@ -191,7 +207,11 @@ def main():
                 done += 1
                 g = goals[t % len(goals)]
                 print("[%d/%d] %s | %s | lượt %d" % (done, total, m, c, t))
-                ok = run_one(m, c, t, g, a.out, a.timeout, a.extra)
+                extra = list(a.extra)
+                if a.dyn > 0:   # [CD2] dat truoc --extra de van ghi de duoc
+                    extra = ["dyn_obs:=1", "dyn_num:=%d" % a.dyn,
+                             "dyn_seed:=%d" % (t + 1)] + extra
+                ok = run_one(m, c, t, g, a.out, a.timeout, extra)
                 if not ok:
                     failed += 1
                     print("     KHÔNG ghi được dòng nào — xem lại lượt này")

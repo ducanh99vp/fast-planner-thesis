@@ -6,6 +6,23 @@
   <arg name="flight_type" default="1"/>
   <arg name="use_pcd"  default="false"/>
   <arg name="map_file" default=""/>
+  <!-- [CD2] so vat can tinh cua ban do ngoai troi: cot vuong / vanh tron.
+       Mac dinh giu dung gia tri goc cua HKUST de hanh vi cu khong doi. -->
+  <arg name="p_num" default="150"/>
+  <arg name="c_num" default="10"/>
+  <!-- [CD2] vat can dong; dyn_obs=0 = tat, hanh vi tinh khong doi -->
+  <arg name="dyn_obs"       default="0"/>
+  <arg name="dyn_num"       default="6"/>
+  <arg name="dyn_vel"       default="0.8"/>
+  <arg name="dyn_xy_x"      default="14.0"/>
+  <arg name="dyn_xy_y"      default="8.0"/>
+  <arg name="dyn_axis_only" default="true"/>
+  <arg name="dyn_interval"  default="1000000.0"/>
+  <arg name="dyn_bounce_static" default="true"/>
+  <arg name="dyn_unstick"       default="2.5"/>
+  <arg name="dyn_seed"      default="-1"/>
+  <arg name="dyn_start_on_goal" default="true"/>
+  <arg name="p_hmin" default="0.0"/>
   
   <arg name="map_resolution" default="0.1"/>
   <arg name="ctrl_pt_dist"   default="0.5"/>
@@ -15,6 +32,7 @@
   <arg name="inflation"    default="0.099"/>
   <arg name="local_range"  default="5.5"/>
   <arg name="virtual_ceil" default="2.5"/>
+  <arg name="virtual_floor" default="-100000.0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -86,6 +104,7 @@
     <arg name="inflation"    value="$(arg inflation)"/>
     <arg name="local_range"  value="$(arg local_range)"/>
     <arg name="virtual_ceil" value="$(arg virtual_ceil)"/>
+    <arg name="virtual_floor" value="$(arg virtual_floor)"/>
 
     <arg name="takeoff_height"       value="$(arg takeoff_height)"/>
   </include>
@@ -110,8 +129,20 @@
     <arg name="map_size_x_" value="$(arg map_size_x)"/>
     <arg name="map_size_y_" value="$(arg map_size_y)"/>
     <arg name="map_size_z_" value="$(arg map_size_z)"/>
-    <arg name="c_num" value="10"/>
-    <arg name="p_num" value="150"/>
+    <arg name="c_num" value="$(arg c_num)"/>
+    <arg name="p_num" value="$(arg p_num)"/>
+    <arg name="dyn_obs"       value="$(arg dyn_obs)"/>
+    <arg name="dyn_num"       value="$(arg dyn_num)"/>
+    <arg name="dyn_vel"       value="$(arg dyn_vel)"/>
+    <arg name="dyn_xy_x"      value="$(arg dyn_xy_x)"/>
+    <arg name="dyn_xy_y"      value="$(arg dyn_xy_y)"/>
+    <arg name="dyn_axis_only" value="$(arg dyn_axis_only)"/>
+    <arg name="dyn_interval"  value="$(arg dyn_interval)"/>
+    <arg name="dyn_bounce_static" value="$(arg dyn_bounce_static)"/>
+    <arg name="dyn_unstick"       value="$(arg dyn_unstick)"/>
+    <arg name="dyn_seed"      value="$(arg dyn_seed)"/>
+    <arg name="dyn_start_on_goal" value="$(arg dyn_start_on_goal)"/>
+    <arg name="p_hmin" value="$(arg p_hmin)"/>
     <arg name="init_x" value="$(arg init_x)"/>
     <arg name="init_y" value="$(arg init_y)"/>
     <arg name="init_z" value="$(arg init_z)"/>

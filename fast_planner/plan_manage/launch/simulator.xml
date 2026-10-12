@@ -12,6 +12,29 @@
   <arg name="c_num"/>
   <arg name="p_num"/>
   <arg name="odometry_topic"/>
+  <!-- [CD2] vat can dong. dyn_obs=0 thi node KHONG duoc khoi chay,
+       nen hanh vi tinh giu nguyen tuyet doi. -->
+  <arg name="dyn_obs"      default="0"/>
+  <arg name="dyn_num"      default="6"/>
+  <arg name="dyn_vel"      default="0.8"/>
+  <arg name="dyn_xy_x"     default="14.0"/>
+  <arg name="dyn_xy_y"     default="8.0"/>
+  <arg name="dyn_h"        default="4.0"/>
+  <arg name="dyn_axis_only" default="true"/>
+  <arg name="dyn_interval" default="1000000.0"/>
+  <arg name="dyn_cyl_d"    default="0.5"/>
+  <arg name="dyn_cyl_h"    default="1.8"/>
+  <arg name="dyn_box_x"    default="0.6"/>
+  <arg name="dyn_box_y"    default="0.6"/>
+  <arg name="dyn_box_h"    default="3.0"/>
+  <arg name="dyn_bounce_static" default="true"/>
+  <arg name="dyn_unstick"       default="2.5"/>
+  <arg name="dyn_seed"          default="-1"/>
+  <arg name="dyn_start_on_goal" default="true"/>
+  <!-- [CD2] chieu cao THAP NHAT cua cot tinh. Goc HKUST = 0.0: moi cot nho cao
+       ngau nhien 0-3 m nen UAV bay VUOT qua phan lon. 3.0 = moi cot cao 3 m,
+       vuot tran ao 2.5 m -> buoc phai lach ngang, giong trong nha. -->
+  <arg name="p_hmin"            default="0.0"/>
 
   <group unless="$(arg use_pcd)">
     <node pkg ="map_generator" name ="random_forest" type ="random_forest" output = "screen">    
@@ -27,7 +50,7 @@
     <param name="map/obs_num"    value="$(arg p_num)"/>
     <param name="ObstacleShape/lower_rad" value="0.5"/>
     <param name="ObstacleShape/upper_rad" value="0.7"/>
-    <param name="ObstacleShape/lower_hei" value="0.0"/>
+    <param name="ObstacleShape/lower_hei" value="$(arg p_hmin)"/>  <!-- [CD2] -->
     <param name="ObstacleShape/upper_hei" value="3.0"/>        
 
     <param name="map/circle_num" value="$(arg c_num)"/>        
@@ -106,6 +129,37 @@
 
         <remap from="~global_map" to="/map_generator/global_cloud"/>
         <remap from="~odometry"   to="$(arg odometry_topic)"/>
+  </node>
+
+  <!-- [CD2] Bo sinh vat can dong. File co san trong ma nguon HKUST va da duoc
+       bien dich, nhung chua bao gio duoc khoi chay. dyn_interval rat lon =
+       khong bao gio gieo lai van toc -> chuyen dong THANG DEU. -->
+  <node pkg="plan_env" name="obj_generator" type="obj_generator" output="screen"
+        if="$(arg dyn_obs)">
+    <param name="obj_generator/obj_num"   value="$(arg dyn_num)"/>
+    <param name="obj_generator/vel"       value="$(arg dyn_vel)"/>
+    <param name="obj_generator/xy_x"      value="$(arg dyn_xy_x)"/>
+    <param name="obj_generator/xy_y"      value="$(arg dyn_xy_y)"/>
+    <param name="obj_generator/xy_size"   value="$(arg dyn_xy_x)"/>
+    <param name="obj_generator/h_size"    value="$(arg dyn_h)"/>
+    <param name="obj_generator/axis_only" value="$(arg dyn_axis_only)" type="bool"/>
+    <param name="obj_generator/interval"  value="$(arg dyn_interval)" type="double"/>
+    <param name="obj_generator/cyl_d"     value="$(arg dyn_cyl_d)"/>
+    <param name="obj_generator/cyl_h"     value="$(arg dyn_cyl_h)"/>
+    <param name="obj_generator/box_x"     value="$(arg dyn_box_x)"/>
+    <param name="obj_generator/box_y"     value="$(arg dyn_box_y)"/>
+    <param name="obj_generator/box_h"     value="$(arg dyn_box_h)"/>
+    <param name="obj_generator/bounce_static" value="$(arg dyn_bounce_static)" type="bool"/>
+    <param name="obj_generator/map_res"       value="0.1"/>  <!-- = map/resolution -->
+    <param name="obj_generator/unstick"       value="$(arg dyn_unstick)"/>
+    <param name="obj_generator/seed"          value="$(arg dyn_seed)" type="int"/>
+    <param name="obj_generator/start_on_goal" value="$(arg dyn_start_on_goal)" type="bool"/>
+    <param name="obj_generator/yaw_dot"   value="0.0"/>
+    <param name="obj_generator/acc_r1"    value="0.0"/>
+    <param name="obj_generator/acc_r2"    value="0.0"/>
+    <param name="obj_generator/acc_z"     value="0.0"/>
+    <param name="obj_generator/scale1"    value="0.5"/>
+    <param name="obj_generator/scale2"    value="0.8"/>
   </node>
 
 </launch>

@@ -53,4 +53,5 @@ add_executable(obj_generator
     src/obj_generator.cpp 
     )
 target_link_libraries(obj_generator 
-    ${catkin_LIBRARIES})
+    ${catkin_LIBRARIES}
+    ${PCL_LIBRARIES})   # [CD2] can PCL vi obj_generator doc ban do tinh

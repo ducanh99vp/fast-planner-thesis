@@ -13,6 +13,24 @@
   <arg name="goal_x"   default="5.0"/>
   <arg name="goal_y"   default="0.0"/>
   <arg name="out_csv"  default="$(env HOME)/fast_planner_ws/src/Fast-Planner/results/raw/bench.csv"/>
+  <!-- [CD2] CSV rieng, MOT DONG MOI LAN CHAM TRAN voi vat can dong -->
+  <arg name="enc_csv"  default="$(env HOME)/fast_planner_ws/src/Fast-Planner/results/raw/encounters.csv"/>
+  <arg name="enc_thresh" default="3.0"/>
+  <!-- [CD2] vat can dong -->
+  <arg name="dyn_obs"       default="0"/>
+  <arg name="dyn_num"       default="6"/>
+  <arg name="dyn_vel"       default="0.8"/>
+  <arg name="dyn_xy_x"      default="14.0"/>
+  <arg name="dyn_xy_y"      default="8.0"/>
+  <arg name="dyn_axis_only" default="true"/>
+  <arg name="dyn_interval"  default="1000000.0"/>
+  <arg name="dyn_bounce_static" default="true"/>
+  <arg name="dyn_unstick"   default="2.5"/>
+  <arg name="dyn_seed"      default="-1"/>
+  <arg name="dyn_start_on_goal" default="true"/>
+  <arg name="p_hmin" default="0.0"/>
+  <arg name="p_num" default="150"/>
+  <arg name="c_num" default="10"/>
   <arg name="timeout"  default="120.0"/>
   <arg name="use_pcd"  default="false"/>
   <arg name="map_file" default=""/>
@@ -44,6 +62,7 @@
   <arg name="inflation"    default="0.099"/>
   <arg name="local_range"  default="5.5"/>
   <arg name="virtual_ceil" default="2.5"/>
+  <arg name="virtual_floor" default="-100000.0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -73,17 +92,35 @@
     <arg name="inflation"    value="$(arg inflation)"/>
     <arg name="local_range"  value="$(arg local_range)"/>
     <arg name="virtual_ceil" value="$(arg virtual_ceil)"/>
+    <arg name="virtual_floor" value="$(arg virtual_floor)"/>
 
     <arg name="takeoff_height"       value="$(arg takeoff_height)"/>
 
     <arg name="use_pcd"  value="$(arg use_pcd)"/>
     <arg name="map_file" value="$(arg map_file)"/>
+    <!-- [CD2] -->
+    <arg name="p_num"   value="$(arg p_num)"/>
+    <arg name="c_num"   value="$(arg c_num)"/>
+    <arg name="dyn_obs"       value="$(arg dyn_obs)"/>
+    <arg name="dyn_num"       value="$(arg dyn_num)"/>
+    <arg name="dyn_vel"       value="$(arg dyn_vel)"/>
+    <arg name="dyn_xy_x"      value="$(arg dyn_xy_x)"/>
+    <arg name="dyn_xy_y"      value="$(arg dyn_xy_y)"/>
+    <arg name="dyn_axis_only" value="$(arg dyn_axis_only)"/>
+    <arg name="dyn_interval"  value="$(arg dyn_interval)"/>
+    <arg name="dyn_bounce_static" value="$(arg dyn_bounce_static)"/>
+    <arg name="dyn_unstick"   value="$(arg dyn_unstick)"/>
+    <arg name="dyn_seed"      value="$(arg dyn_seed)"/>
+    <arg name="dyn_start_on_goal" value="$(arg dyn_start_on_goal)"/>
+    <arg name="p_hmin" value="$(arg p_hmin)"/>
   </include>
 
   <!-- ===== Bộ thu thập chỉ số ===== -->
   <node pkg="benchmark_tools" type="metric_logger.py" name="metric_logger"
         output="screen" required="true">
     <param name="out_csv"    value="$(arg out_csv)"/>
+    <param name="enc_csv"    value="$(arg enc_csv)"/>
+    <param name="enc_thresh" value="$(arg enc_thresh)"/>
     <param name="map_name"   value="$(arg map_name)"/>
     <param name="config"     value="$(arg config)"/>
     <param name="trial"      value="$(arg trial)"/>

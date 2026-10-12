@@ -33,6 +33,7 @@ from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Float64MultiArray
+from visualization_msgs.msg import Marker   # [CD2] vat can dong
 import sensor_msgs.point_cloud2 as pc2
 
 try:
@@ -52,10 +53,55 @@ FIELDS = [
     "map", "config", "trial",
     "success", "collided", "timed_out",
     "T_f", "L", "v_mean", "v_max", "v_cmd_max","v_cmd_axis_max", "S_J", "j_rms", "dacc_mean", "dacc_max", "d_min", "d_p5", "d_min_cmd", "z_min_flight",
+    # [CD2] vat can dong: tom tat moi luot
+    "n_enc", "n_hit", "d_min_dyn", "d_p5_dyn",
     "N_replan", "N_fail",
     "t_fe_mean", "t_fe_max", "t_be_mean", "t_be_max", "t_be_p95",
     "start_x", "start_y", "goal_x", "goal_y",
     "n_odom", "stamp",
+]
+
+
+# [CD2] -------------------------------------------------------------------
+# Khoang cach CO DAU tu mot diem toi be mat vat can.
+#   > 0 : ben ngoai, la khoang ho that
+#   < 0 : ben trong, la do xuyen sau  ->  VA CHAM
+# Marker type: 1 = CUBE (hop song song truc), 3 = CYLINDER (truc thang dung).
+
+ENC_CUBE, ENC_CYL = 1, 3
+
+
+def sdf_box(p, c, half):
+    """Hop song song truc."""
+    e = np.abs(p - c) - half
+    outside = float(np.linalg.norm(np.maximum(e, 0.0)))
+    inside = float(min(np.max(e), 0.0))
+    return outside + inside
+
+
+def sdf_cyl(p, c, radius, half_h):
+    """Tru thang dung: ban kinh trong mat phang xy, nua chieu cao theo z."""
+    dxy = float(np.linalg.norm(p[:2] - c[:2])) - radius
+    dz = abs(float(p[2] - c[2])) - half_h
+    outside = math.sqrt(max(dxy, 0.0) ** 2 + max(dz, 0.0) ** 2)
+    inside = min(max(dxy, dz), 0.0)
+    return outside + inside
+
+
+def sdf_obj(p, o):
+    """o = dict(c, scale, type)."""
+    c = o["c"]
+    sc = o["scale"]
+    if o["type"] == ENC_CYL:
+        return sdf_cyl(p, c, 0.5 * sc[0], 0.5 * sc[2])
+    return sdf_box(p, c, 0.5 * sc)
+
+
+ENC_FIELDS = [
+    "map", "config", "trial", "obj_id", "obj_type",
+    "t_min", "d_min", "hit",
+    "uav_x", "uav_y", "uav_z", "obj_x", "obj_y",
+    "uav_speed", "obj_speed", "angle_deg",
 ]
 
 
@@ -68,6 +114,22 @@ class MetricLogger(object):
         self.trial      = int(rospy.get_param("~trial", 0))
         self.goal_x     = float(rospy.get_param("~goal_x", 5.0))
         self.goal_y     = float(rospy.get_param("~goal_y", 0.0))
+
+        # [CD2] vat can dong -------------------------------------------------
+        # enc_thresh: khoang cach bat dau tinh la MOT LAN CHAM TRAN.
+        # enc_exit:   phai gian ra them chung nay moi coi la ket thuc, de mot
+        #             lan tiep can khong bi dem thanh nhieu lan vi nhieu do.
+        self.enc_csv     = rospy.get_param("~enc_csv", "")
+        self.enc_thresh  = float(rospy.get_param("~enc_thresh", 3.0))
+        self.enc_exit    = float(rospy.get_param("~enc_exit", 0.3))
+        # tre: phai ra han enc_thresh + enc_hyst moi duoc mo lan moi,
+        # neu khong thi dao dong quanh dung nguong se sinh lan gia
+        self.enc_hyst    = float(rospy.get_param("~enc_hyst", 0.5))
+        self.dyn_objs    = {}     # id -> dict(c, scale, type, v, t)
+        self.enc_state   = {}     # id -> dict dang theo doi mot lan cham tran
+        self.encounters  = []     # danh sach lan cham tran da ket thuc
+        self.dyn_d_list  = []
+        self.d_min_dyn   = float("inf")
         self.timeout    = float(rospy.get_param("~timeout", 120.0))
         self.goal_tol   = float(rospy.get_param("~goal_tol", 0.6))
         self.uav_radius = float(rospy.get_param("~uav_radius", 0.2))
@@ -119,6 +181,7 @@ class MetricLogger(object):
 
         rospy.Subscriber("/map_generator/global_cloud", PointCloud2,
                          self.cb_cloud, queue_size=1)
+        rospy.Subscriber("/dynamic/obj", Marker, self.cb_dynobj, queue_size=50)  # [CD2]
         rospy.Subscriber("/visual_slam/odom", Odometry, self.cb_odom, queue_size=50)
         rospy.Subscriber("/benchmark/timing", Float64MultiArray,
                          self.cb_timing, queue_size=50)
@@ -136,6 +199,81 @@ class MetricLogger(object):
                           "Cài bằng: pip3 install scipy")
 
     # ------------------------------------------------------------------
+    # [CD2] ---------------------------------------------------------------
+    def cb_dynobj(self, msg):
+        """Moi message la MOT vat can. Luu vi tri, kich thuoc, loai, va uoc
+        luong van toc bang sai phan giua hai lan nhan lien tiep."""
+        with self.lock:
+            if self.finished:
+                return
+            t = rospy.Time.now().to_sec()
+            c = np.array([msg.pose.position.x, msg.pose.position.y,
+                          msg.pose.position.z])
+            sc = np.array([msg.scale.x, msg.scale.y, msg.scale.z])
+            old = self.dyn_objs.get(msg.id)
+            v = np.zeros(3)
+            if old is not None and t - old["t"] > 1e-4:
+                v = (c - old["c"]) / (t - old["t"])
+                v = 0.6 * old["v"] + 0.4 * v      # lam tron nhe
+            self.dyn_objs[msg.id] = {"c": c, "scale": sc, "type": msg.type,
+                                     "v": v, "t": t}
+
+    def _update_encounters(self, p, v_uav, t):
+        """Theo doi tung vat can; mot LAN CHAM TRAN la mot cuc tieu dia phuong
+        cua khoang cach, nam duoi enc_thresh."""
+        for oid, o in self.dyn_objs.items():
+            d = sdf_obj(p, o)
+            self.dyn_d_list.append(d)
+            if d < self.d_min_dyn:
+                self.d_min_dyn = d
+
+            st = self.enc_state.get(oid)
+
+            if st is None:
+                # chua theo doi: chi mo khi lot vao trong nguong
+                if d < self.enc_thresh:
+                    self.enc_state[oid] = {
+                        "d_min": d, "t_min": t, "closed": False,
+                        "uav": p.copy(), "obj": o["c"].copy(),
+                        "vu": v_uav.copy(), "vo": o["v"].copy()}
+            elif st["closed"]:
+                # DA dong: phai RA HAN khoi vung nguong moi duoc mo lan moi.
+                # Khong co dieu kien nay thi mot lan tiep can duy nhat bi dem
+                # thanh nhieu lan khi no dang roi xa (da gap: 1 lan -> 5 dong).
+                if d >= self.enc_thresh + self.enc_hyst:
+                    del self.enc_state[oid]
+            else:
+                if d < st["d_min"]:
+                    st.update(d_min=d, t_min=t, uav=p.copy(),
+                              obj=o["c"].copy(), vu=v_uav.copy(),
+                              vo=o["v"].copy())
+                elif d > st["d_min"] + self.enc_exit or d >= self.enc_thresh:
+                    self._close_encounter(oid, st)
+
+    def _close_encounter(self, oid, st):
+        st["closed"] = True
+        nu, no = np.linalg.norm(st["vu"][:2]), np.linalg.norm(st["vo"][:2])
+        ang = float("nan")
+        if nu > 1e-3 and no > 1e-3:
+            cs = float(np.dot(st["vu"][:2], st["vo"][:2]) / (nu * no))
+            ang = math.degrees(math.acos(max(-1.0, min(1.0, cs))))
+        o = self.dyn_objs.get(oid, {})
+        self.encounters.append({
+            "map": self.map_name, "config": self.config, "trial": self.trial,
+            "obj_id": oid, "obj_type": o.get("type", -1),
+            "t_min": round(st["t_min"] - (self.t_start or 0.0), 3),
+            "d_min": round(st["d_min"], 4),
+            "hit": int(st["d_min"] < self.uav_radius),
+            "uav_x": round(float(st["uav"][0]), 3),
+            "uav_y": round(float(st["uav"][1]), 3),
+            "uav_z": round(float(st["uav"][2]), 3),
+            "obj_x": round(float(st["obj"][0]), 3),
+            "obj_y": round(float(st["obj"][1]), 3),
+            "uav_speed": round(float(nu), 3),
+            "obj_speed": round(float(no), 3),
+            "angle_deg": round(ang, 1) if ang == ang else "",
+        })
+
     def cb_cloud(self, msg):
         if self.kdtree is not None or not HAVE_SCIPY:
             return
@@ -194,6 +332,12 @@ class MetricLogger(object):
                     if not self.collided:
                         rospy.logwarn("[metric_logger] VA CHẠM: d = %.3f m", d)
                     self.collided = True
+
+            # [CD2] theo doi cham tran voi vat can dong
+            if self.airborne and self.dyn_objs:
+                self._update_encounters(p, v, msg.header.stamp.to_sec()
+                                        if msg.header.stamp.to_sec() > 0
+                                        else rospy.Time.now().to_sec())
 
             # tới đích chưa
             goal = np.array([self.goal_x, self.goal_y, 1.0])
@@ -307,6 +451,13 @@ class MetricLogger(object):
         dacc  = np.array(self.joint_jumps) if self.joint_jumps else np.array([0.0])
         j_rms = math.sqrt(self.jerk_sq_int / T_f) if T_f > 1e-6 else 0.0
 
+        # [CD2] dong moi lan cham tran con dang mo
+        for oid, st in self.enc_state.items():
+            if not st["closed"]:
+                self._close_encounter(oid, st)
+        dd = np.array(self.dyn_d_list) if self.dyn_d_list else np.array([float("nan")])
+        n_hit = sum(e["hit"] for e in self.encounters)
+
         row = {
             "map": self.map_name,
             "config": self.config,
@@ -340,6 +491,13 @@ class MetricLogger(object):
             "start_y": round(float(self.start_pos[1]), 3) if self.start_pos is not None else "",
             "goal_x": self.goal_x,
             "goal_y": self.goal_y,
+            # [CD2]
+            "n_enc": len(self.encounters),
+            "n_hit": n_hit,
+            "d_min_dyn": round(float(self.d_min_dyn), 4)
+                         if self.d_min_dyn < float("inf") else "",
+            "d_p5_dyn": round(float(np.nanpercentile(dd, 5)), 4)
+                        if self.dyn_d_list else "",
             "n_odom": self.n_odom,
             "stamp": rospy.Time.now().to_sec(),
         }
@@ -361,6 +519,23 @@ class MetricLogger(object):
             if new_file:
                 w.writeheader()
             w.writerow(row)
+
+        # [CD2] ghi tung lan cham tran ra CSV rieng — day moi la du lieu chinh
+        if self.enc_csv and self.encounters:
+            de = os.path.dirname(self.enc_csv)
+            if de and not os.path.isdir(de):
+                os.makedirs(de)
+            new_e = not os.path.isfile(self.enc_csv)
+            with open(self.enc_csv, "a", newline="") as fe:
+                we = csv.DictWriter(fe, fieldnames=ENC_FIELDS)
+                if new_e:
+                    we.writeheader()
+                for e in self.encounters:
+                    we.writerow(e)
+
+        rospy.loginfo("[metric_logger] Cham tran voi vat can dong: %d lan, "
+                      "%d lan va cham, d_min_dyn=%s",
+                      len(self.encounters), n_hit, str(row["d_min_dyn"]))
 
         rospy.loginfo("[metric_logger] Kết thúc (%s) | thành công=%d | "
                       "T_f=%.1fs | L=%.1fm | d_min=%s | replan=%d",

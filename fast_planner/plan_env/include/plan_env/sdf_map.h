@@ -104,6 +104,7 @@ struct MappingParameters {
 
   /* visualization and computation time display */
   double esdf_slice_height_, visualization_truncate_height_, virtual_ceil_height_, ground_height_;
+  double virtual_floor_height_;   // [CD2] san ao, doi xung voi tran ao
   bool show_esdf_time_, show_occ_time_;
 
   /* active mapping */
@@ -253,6 +254,7 @@ private:
   void projectDepthImage();
   void raycastProcess();
   void clearAndInflateLocalMap();
+  void applyVirtualBounds();   // [CD2] san ao + tran ao, dung chung hai nhanh
 
   inline void inflatePoint(const Eigen::Vector3i& pt, int step, vector<Eigen::Vector3i>& pts);
   int setCacheOccupancy(Eigen::Vector3d pos, int occ);

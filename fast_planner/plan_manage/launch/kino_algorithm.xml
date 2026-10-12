@@ -26,6 +26,8 @@
   <arg name="inflation"    default="0.099"/>
   <arg name="local_range"  default="5.5"/>
   <arg name="virtual_ceil" default="2.5"/>
+  <!-- [CD2] san ao: do cao bay toi thieu. Rat am = tat -->
+  <arg name="virtual_floor" default="-100000.0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -107,6 +109,7 @@
     <param name="sdf_map/esdf_slice_height" value="0.3"/>
     <param name="sdf_map/visualization_truncate_height"   value="2.49"/>
     <param name="sdf_map/virtual_ceil_height"   value="$(arg virtual_ceil)"/>
+    <param name="sdf_map/virtual_floor_height"  value="$(arg virtual_floor)"/>
     <param name="sdf_map/show_occ_time"  value="false"/>
     <param name="sdf_map/show_esdf_time" value="false"/>
     <param name="sdf_map/pose_type"     value="1"/>  

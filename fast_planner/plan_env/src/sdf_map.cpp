@@ -75,6 +75,10 @@ void SDFMap::initMap(ros::NodeHandle& nh) {
   node_.param("sdf_map/local_bound_inflate", mp_.local_bound_inflate_, 1.0);
   node_.param("sdf_map/local_map_margin", mp_.local_map_margin_, 1);
   node_.param("sdf_map/ground_height", mp_.ground_height_, 1.0);
+  /* [CD2] San ao. Ban do ngoai troi random_forest KHONG co san, nen z = 0 la
+     khong gian trong va planner ra lenh bay la la mat dat (do duoc: z trung
+     binh 0.07 m tren ca chuyen). Gia tri rat am = tat, giu hanh vi cu. */
+  node_.param("sdf_map/virtual_floor_height", mp_.virtual_floor_height_, -1e5);
 
   mp_.local_bound_inflate_ = max(mp_.resolution_, mp_.local_bound_inflate_);
   mp_.resolution_inv_ = 1 / mp_.resolution_;
@@ -752,13 +756,35 @@ void SDFMap::clearAndInflateLocalMap() {
         }
       }
 
-  // add virtual ceiling to limit flight height
+  applyVirtualBounds();   // [CD2]
+}
+
+/* [CD2] San ao + tran ao.
+ *
+ * Truoc day hai thu nay nam trong clearAndInflateLocalMap(), ma ham do CHI
+ * duoc goi tu updateOccupancyCallback() — nhanh anh do sau. Cau hinh dang chay
+ * dung nhanh cloudCallback(), nen ca tran ao LAN san ao deu KHONG BAO GIO chay.
+ * Do la ly do ghi chu M3 ket luan "tran ao khong hieu luc nen P2 == P0".
+ * Tach ra day de goi duoc tu ca hai nhanh. */
+void SDFMap::applyVirtualBounds() {
+  // San ao: danh dau MOI o tu day ban do len toi virtual_floor_height_.
+  // Khac tran ao (chi mot lop): mot lop don o duoi de bi lot qua.
+  if (mp_.virtual_floor_height_ > mp_.map_origin_(2)) {
+    int floor_id = floor((mp_.virtual_floor_height_ - mp_.map_origin_(2)) * mp_.resolution_inv_);
+    floor_id = min(max(floor_id, 0), mp_.map_voxel_num_(2) - 1);
+    for (int x = md_.local_bound_min_(0); x <= md_.local_bound_max_(0); ++x)
+      for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y)
+        for (int z = 0; z <= floor_id; ++z)
+          md_.occupancy_buffer_inflate_[toAddress(x, y, z)] = 1;
+  }
+
+  // Tran ao: gioi han do cao bay.
   if (mp_.virtual_ceil_height_ > -0.5) {
     int ceil_id = floor((mp_.virtual_ceil_height_ - mp_.map_origin_(2)) * mp_.resolution_inv_);
+    ceil_id = min(max(ceil_id, 0), mp_.map_voxel_num_(2) - 1);
     for (int x = md_.local_bound_min_(0); x <= md_.local_bound_max_(0); ++x)
-      for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y) {
+      for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y)
         md_.occupancy_buffer_inflate_[toAddress(x, y, ceil_id)] = 1;
-      }
   }
 }
 
@@ -947,6 +973,7 @@ void SDFMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr& img) {
   boundIndex(md_.local_bound_min_);
   boundIndex(md_.local_bound_max_);
 
+  applyVirtualBounds();   // [CD2] nhanh cloudCallback cung phai dat san/tran
   md_.esdf_need_update_ = true;
 }
 
