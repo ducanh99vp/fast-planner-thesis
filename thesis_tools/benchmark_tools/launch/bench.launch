@@ -63,6 +63,8 @@
   <arg name="local_range"  default="5.5"/>
   <arg name="virtual_ceil" default="2.5"/>
   <arg name="virtual_floor" default="-100000.0"/>
+  <arg name="dyn_sweep_T" default="-1.0"/>
+  <arg name="dyn_sweep_inflate" default="-1.0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -93,6 +95,8 @@
     <arg name="local_range"  value="$(arg local_range)"/>
     <arg name="virtual_ceil" value="$(arg virtual_ceil)"/>
     <arg name="virtual_floor" value="$(arg virtual_floor)"/>
+    <arg name="dyn_sweep_T" value="$(arg dyn_sweep_T)"/>
+    <arg name="dyn_sweep_inflate" value="$(arg dyn_sweep_inflate)"/>
 
     <arg name="takeoff_height"       value="$(arg takeoff_height)"/>
 

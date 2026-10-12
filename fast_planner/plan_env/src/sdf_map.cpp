@@ -79,6 +79,10 @@ void SDFMap::initMap(ros::NodeHandle& nh) {
      khong gian trong va planner ra lenh bay la la mat dat (do duoc: z trung
      binh 0.07 m tren ca chuyen). Gia tri rat am = tat, giu hanh vi cu. */
   node_.param("sdf_map/virtual_floor_height", mp_.virtual_floor_height_, -1e5);
+  /* [CD2] P2: vet quet vat can dong. T < 0 = tat, ban do giu nguyen nhu P0.
+     inflate < 0 = dung lai obstacles_inflation_ cua vat can tinh. */
+  node_.param("sdf_map/dyn_sweep_T", mp_.dyn_sweep_T_, -1.0);
+  node_.param("sdf_map/dyn_sweep_inflate", mp_.dyn_sweep_inflate_, -1.0);
 
   mp_.local_bound_inflate_ = max(mp_.resolution_, mp_.local_bound_inflate_);
   mp_.resolution_inv_ = 1 / mp_.resolution_;
@@ -154,6 +158,8 @@ void SDFMap::initMap(ros::NodeHandle& nh) {
 
   indep_cloud_sub_ =
       node_.subscribe<sensor_msgs::PointCloud2>("/sdf_map/cloud", 10, &SDFMap::cloudCallback, this);
+  if (mp_.dyn_sweep_T_ >= 0.0)   // [CD2] P2
+    dyn_obj_sub_ = node_.subscribe("/dynamic/obj", 50, &SDFMap::dynObjCallback, this);
   indep_odom_sub_ =
       node_.subscribe<nav_msgs::Odometry>("/sdf_map/odom", 10, &SDFMap::odomCallback, this);
 
@@ -759,6 +765,93 @@ void SDFMap::clearAndInflateLocalMap() {
   applyVirtualBounds();   // [CD2]
 }
 
+/* [CD2] P2 ---------------------------------------------------------------
+ * Moi message /dynamic/obj la MOT vat can. Luu tam, kich thuoc, loai, va uoc
+ * luong van toc bang sai phan giua hai lan nhan (lam tron nhe). Day la thong tin
+ * "vi tri + van toc" — chua phai bo du doan gi phuc tap. */
+void SDFMap::dynObjCallback(const visualization_msgs::MarkerConstPtr& msg) {
+  const double t = ros::Time::now().toSec();
+  const Eigen::Vector3d c(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
+  const Eigen::Vector3d sc(msg->scale.x, msg->scale.y, msg->scale.z);
+  auto it = dyn_objs_.find(msg->id);
+  if (it == dyn_objs_.end()) {
+    dyn_objs_[msg->id] = DynObjState{c, sc, Eigen::Vector3d::Zero(), msg->type, t, false};
+    return;
+  }
+  DynObjState& o = it->second;
+  const double dt = t - o.t;
+  if (dt > 1e-4) {
+    const Eigen::Vector3d v = (c - o.c) / dt;
+    o.v = o.has_v ? Eigen::Vector3d(0.6 * o.v + 0.4 * v) : v;
+    o.has_v = true;
+  }
+  o.c = c; o.scale = sc; o.type = msg->type; o.t = t;
+}
+
+/* [CD2] P2: VET QUET.
+ * Moi vat can duoc ghi vao luoi chiem dung KHONG chi o vi tri hien tai, ma ca
+ * vung no se quet qua trong dyn_sweep_T_ giay toi: hinh chieu cua no keo dai
+ * theo huong van toc mot doan v*T. A* va bo toi uu se ne vung do nhu ne vat can
+ * tinh — rang buoc CUNG.
+ *
+ * Ve bang cach lay mau doc doan v*T (buoc <= do phan giai), danh dau hinh chieu
+ * xy (hop: chu nhat; tru: hinh tron) roi lap day theo z trong chieu cao vat can.
+ *
+ * CHI ve trong hop ±local_update_range_ quanh UAV: do la vung ma resetBuffer()
+ * xoa moi khung hinh. Ve ra ngoai thi khong bao gio duoc xoa -> vet ma. Sau do
+ * noi rong local_bound_ de ESDF duoc tinh lai ca o vung vua ve. */
+void SDFMap::markDynSweep() {
+  if (mp_.dyn_sweep_T_ < 0.0 || dyn_objs_.empty()) return;
+  const double tnow = ros::Time::now().toSec();
+  const double infl = (mp_.dyn_sweep_inflate_ >= 0.0) ? mp_.dyn_sweep_inflate_
+                                                      : mp_.obstacles_inflation_;
+  Eigen::Vector3i lo, hi;
+  posToIndex(md_.camera_pos_ - mp_.local_update_range_, lo);
+  posToIndex(md_.camera_pos_ + mp_.local_update_range_, hi);
+  boundIndex(lo);
+  boundIndex(hi);
+
+  for (const auto& kv : dyn_objs_) {
+    const DynObjState& o = kv.second;
+    if (tnow - o.t > 0.5) continue;                        // mat tin: khong ve
+    const Eigen::Vector3d d = o.has_v ? Eigen::Vector3d(o.v * mp_.dyn_sweep_T_)
+                                      : Eigen::Vector3d::Zero();
+    const double hx = 0.5 * o.scale(0) + infl, hy = 0.5 * o.scale(1) + infl;
+    const double rr = 0.5 * o.scale(0) + infl;              // ban kinh tru
+    const double z0 = o.c(2) - 0.5 * o.scale(2) - infl, z1 = o.c(2) + 0.5 * o.scale(2) + infl;
+    const int nstep = std::max(1, (int)std::ceil(d.head<2>().norm() / mp_.resolution_));
+
+    std::unordered_set<long> cols;                         // o (ix, iy) bi chiem
+    Eigen::Vector3i id;
+    for (int k = 0; k <= nstep; ++k) {
+      const Eigen::Vector3d cs = o.c + d * (double(k) / nstep);
+      for (double x = cs(0) - hx; x <= cs(0) + hx + 1e-9; x += mp_.resolution_)
+        for (double y = cs(1) - hy; y <= cs(1) + hy + 1e-9; y += mp_.resolution_) {
+          if (o.type == 3 && (x - cs(0)) * (x - cs(0)) + (y - cs(1)) * (y - cs(1)) > rr * rr) continue;
+          posToIndex(Eigen::Vector3d(x, y, cs(2)), id);
+          if (id(0) < lo(0) || id(0) > hi(0) || id(1) < lo(1) || id(1) > hi(1)) continue;
+          cols.insert((long)id(0) * 100000L + id(1));
+        }
+    }
+    if (cols.empty()) continue;
+
+    Eigen::Vector3i iz0, iz1;
+    posToIndex(Eigen::Vector3d(o.c(0), o.c(1), z0), iz0);
+    posToIndex(Eigen::Vector3d(o.c(0), o.c(1), z1), iz1);
+    const int za = std::max(iz0(2), lo(2)), zb = std::min(iz1(2), hi(2));
+    for (long key : cols) {
+      int ix = (int)(key / 100000L), iy = (int)(key % 100000L);  // toAddress can int&
+      for (int iz = za; iz <= zb; ++iz) md_.occupancy_buffer_inflate_[toAddress(ix, iy, iz)] = 1;
+      md_.local_bound_min_(0) = std::min(md_.local_bound_min_(0), ix);
+      md_.local_bound_min_(1) = std::min(md_.local_bound_min_(1), iy);
+      md_.local_bound_max_(0) = std::max(md_.local_bound_max_(0), ix);
+      md_.local_bound_max_(1) = std::max(md_.local_bound_max_(1), iy);
+    }
+    md_.local_bound_min_(2) = std::min(md_.local_bound_min_(2), za);
+    md_.local_bound_max_(2) = std::max(md_.local_bound_max_(2), zb);
+  }
+}
+
 /* [CD2] San ao + tran ao.
  *
  * Truoc day hai thu nay nam trong clearAndInflateLocalMap(), ma ham do CHI
@@ -767,6 +860,7 @@ void SDFMap::clearAndInflateLocalMap() {
  * Do la ly do ghi chu M3 ket luan "tran ao khong hieu luc nen P2 == P0".
  * Tach ra day de goi duoc tu ca hai nhanh. */
 void SDFMap::applyVirtualBounds() {
+  markDynSweep();   // [CD2] P2 — truoc san/tran vi no co the noi rong local_bound_
   // San ao: danh dau MOI o tu day ban do len toi virtual_floor_height_.
   // Khac tran ao (chi mot lop): mot lop don o duoi de bi lot qua.
   if (mp_.virtual_floor_height_ > mp_.map_origin_(2)) {

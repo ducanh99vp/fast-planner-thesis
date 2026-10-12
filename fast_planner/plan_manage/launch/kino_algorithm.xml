@@ -28,6 +28,10 @@
   <arg name="virtual_ceil" default="2.5"/>
   <!-- [CD2] san ao: do cao bay toi thieu. Rat am = tat -->
   <arg name="virtual_floor" default="-100000.0"/>
+  <!-- [CD2] P2: ghi VET QUET cua vat can dong trong T giay toi vao ban do.
+       < 0 = tat (giu nguyen P0). inflate < 0 = dung lai inflation cua vat can tinh -->
+  <arg name="dyn_sweep_T"       default="-1.0"/>
+  <arg name="dyn_sweep_inflate" default="-1.0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -110,6 +114,8 @@
     <param name="sdf_map/visualization_truncate_height"   value="2.49"/>
     <param name="sdf_map/virtual_ceil_height"   value="$(arg virtual_ceil)"/>
     <param name="sdf_map/virtual_floor_height"  value="$(arg virtual_floor)"/>
+    <param name="sdf_map/dyn_sweep_T"           value="$(arg dyn_sweep_T)" type="double"/>
+    <param name="sdf_map/dyn_sweep_inflate"     value="$(arg dyn_sweep_inflate)" type="double"/>
     <param name="sdf_map/show_occ_time"  value="false"/>
     <param name="sdf_map/show_esdf_time" value="false"/>
     <param name="sdf_map/pose_type"     value="1"/>  

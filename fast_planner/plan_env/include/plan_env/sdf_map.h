@@ -36,6 +36,8 @@
 #include <queue>
 #include <ros/ros.h>
 #include <tuple>
+#include <map>             // [CD2] P2
+#include <unordered_set>   // [CD2] P2
 #include <visualization_msgs/Marker.h>
 
 #include <pcl/point_cloud.h>
@@ -105,6 +107,8 @@ struct MappingParameters {
   /* visualization and computation time display */
   double esdf_slice_height_, visualization_truncate_height_, virtual_ceil_height_, ground_height_;
   double virtual_floor_height_;   // [CD2] san ao, doi xung voi tran ao
+  double dyn_sweep_T_;           // [CD2] P2: chan troi vet quet (s); < 0 = tat
+  double dyn_sweep_inflate_;     // [CD2] P2: no them quanh vat can dong (m)
   bool show_esdf_time_, show_occ_time_;
 
   /* active mapping */
@@ -255,6 +259,8 @@ private:
   void raycastProcess();
   void clearAndInflateLocalMap();
   void applyVirtualBounds();   // [CD2] san ao + tran ao, dung chung hai nhanh
+  void dynObjCallback(const visualization_msgs::MarkerConstPtr& msg);  // [CD2] P2
+  void markDynSweep();         // [CD2] P2: ghi vet quet vao luoi chiem dung
 
   inline void inflatePoint(const Eigen::Vector3i& pt, int step, vector<Eigen::Vector3i>& pts);
   int setCacheOccupancy(Eigen::Vector3d pos, int occ);
@@ -279,6 +285,16 @@ private:
   SynchronizerImageOdom sync_image_odom_;
 
   ros::Subscriber indep_depth_sub_, indep_odom_sub_, indep_pose_sub_, indep_cloud_sub_;
+
+  // [CD2] P2 — vat can dong doc tu /dynamic/obj
+  ros::Subscriber dyn_obj_sub_;
+  struct DynObjState {
+    Eigen::Vector3d c, scale, v;
+    int    type;      // 1 = CUBE, 3 = CYLINDER
+    double t;
+    bool   has_v;
+  };
+  std::map<int, DynObjState> dyn_objs_;
   ros::Publisher map_pub_, esdf_pub_, map_inf_pub_, update_range_pub_;
   ros::Publisher unknown_pub_, depth_pub_;
   ros::Timer occ_timer_, esdf_timer_, vis_timer_;

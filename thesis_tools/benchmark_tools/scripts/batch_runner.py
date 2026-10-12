@@ -52,7 +52,10 @@ MAPS = {
     #   (lan thu voi |y| <= 8: UAV mu van sach 80% luot -> qua thua).
     "OUT": dict(pcd=None, size=(40.0, 20.0, 5.0), start=(-19.0, 0.0),
                 goals=[(19.0, 0.0)],
-                extra=["p_num:=60", "c_num:=10", "p_hmin:=3.0", "dyn_xy_y:=3.0"])
+                # virtual_floor -0.05: ban do HKUST KHONG co mat dat, vung z in [-1, 0)
+                # trong tron -> P2 ep UAV chui xuong duoi vat can (lenh z toi -1.73 m)
+                extra=["p_num:=60", "c_num:=10", "p_hmin:=3.0", "dyn_xy_y:=3.0",
+                       "virtual_floor:=-0.05"])
 }
 
 # Tham so bay chung cho moi ban do
@@ -72,6 +75,12 @@ CONFIGS = {
     # P2 — nen cho moi thi nghiem TRONG NHA: mac dinh, chi doi tran ao theo
     # tran that 3.0 m. Ngoai troi (CD3) dung P0 voi tran ao 2.5.
     "P2": ["virtual_ceil:=2.8"],
+    # [CD2] Thang bac ne vat can dong. Ten SWxx de khong trung "P0/P1/P2" ben tren
+    # (do la BO THAM SO cua M3, khong phai phuong an ne). SW = ghi VET QUET cua
+    # vat can dong trong xx/10 giay toi vao ban do chiem dung.
+    "SW10": ["dyn_sweep_T:=1.0"],
+    "SW15": ["dyn_sweep_T:=1.5"],
+    "SW25": ["dyn_sweep_T:=2.5"],
 
 
 }

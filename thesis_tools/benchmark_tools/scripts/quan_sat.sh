@@ -10,15 +10,20 @@
 #   ./quan_sat.sh                     # 20 luot, cau hinh mac dinh ben duoi
 #   ./quan_sat.sh 5                   # 5 luot
 #   SEED0=40 DYN=8 P=30 C=5 ./quan_sat.sh 10
+#   SEED0=10 ./quan_sat.sh 5          # 5 hat KHAC nhau: 10, 11, 12, 13, 14
+#   SEED0=10 LAP=1 ./quan_sat.sh 5    # hat 10, lap lai 5 lan
 set -u
 
 N=${1:-20}             # so luot
 SEED0=${SEED0:-1}      # hat giong luot dau
+LAP=${LAP:-0}          # 1 = LAP LAI dung hat SEED0 o moi luot (khong tang hat)
 DYN=${DYN:-8}          # so vat can dong (4 hop + 4 tru)
 P=${P:-60}             # cot vuong tinh
 C=${C:-10}             # vanh tron tinh
 H=${H:-3.0}            # chieu cao thap nhat cua cot (3.0 = khong bay vuot)
 Y=${Y:-3.0}            # nua be rong hanh lang sinh vat can dong quanh y = 0
+T=${T:--1.0}           # P2: chan troi vet quet (s); -1 = tat, tuc la P0
+F=${F:--0.05}          # san ao (m): -0.05 = mat dat that, chan vung duoi z = 0
 TMO=${TMO:-70}         # gioi han moi luot (giay)
 OUT=/tmp/quan_sat.csv  # ghi ra /tmp, khong lan vao results/
 
@@ -30,14 +35,14 @@ fi
 trap 'echo; echo "Dung theo yeu cau."; kill 0' INT
 
 for ((k = 0; k < N; k++)); do
-  SEED=$((SEED0 + k))
-  echo "=== luot $((k + 1))/$N  |  hat $SEED  |  $DYN vat can dong (|y|<=$Y m), $P cot cao >= $H m, $C vanh ==="
+  if [ "$LAP" = "1" ]; then SEED=$SEED0; else SEED=$((SEED0 + k)); fi
+  echo "=== luot $((k + 1))/$N  |  hat $SEED  |  $DYN vat can dong (|y|<=$Y m), $P cot cao >= $H m, $C vanh, vet quet T=$T ==="
   roslaunch benchmark_tools bench.launch \
     map_name:=QS config:=QS trial:=$k goal_x:=19.0 goal_y:=0.0 timeout:=$TMO \
     use_pcd:=false map_size_x:=40.0 map_size_y:=20.0 map_size_z:=5.0 \
     init_x:=-19.0 init_y:=0.0 init_z:=0.0 takeoff_height:=1.0 \
     max_vel:=1.5 max_acc:=1.5 p_num:=$P c_num:=$C p_hmin:=$H \
-    dyn_obs:=1 dyn_num:=$DYN dyn_seed:=$SEED dyn_xy_y:=$Y \
+    dyn_obs:=1 dyn_num:=$DYN dyn_seed:=$SEED dyn_xy_y:=$Y dyn_sweep_T:=$T virtual_floor:=$F \
     out_csv:=$OUT enc_csv:=/tmp/quan_sat_enc.csv 2>&1 \
     | grep --line-buffered -E "Cham tran voi vat can dong|Kết thúc|VA CHẠM" \
     | sed -u 's/\x1b\[[0-9;]*m//g; s/^.*\[metric_logger\] /    /'
