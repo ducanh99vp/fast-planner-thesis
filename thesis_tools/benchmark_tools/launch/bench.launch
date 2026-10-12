@@ -65,6 +65,10 @@
   <arg name="virtual_floor" default="-100000.0"/>
   <arg name="dyn_sweep_T" default="-1.0"/>
   <arg name="dyn_sweep_inflate" default="-1.0"/>
+  <arg name="start_escape" default="0.0"/>
+  <arg name="goal_z" default="1.0"/>
+  <arg name="dyn_check_horizon" default="-1.0"/>
+  <arg name="yaw_mode" default="0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -97,6 +101,10 @@
     <arg name="virtual_floor" value="$(arg virtual_floor)"/>
     <arg name="dyn_sweep_T" value="$(arg dyn_sweep_T)"/>
     <arg name="dyn_sweep_inflate" value="$(arg dyn_sweep_inflate)"/>
+    <arg name="start_escape" value="$(arg start_escape)"/>
+    <arg name="goal_z" value="$(arg goal_z)"/>
+    <arg name="dyn_check_horizon" value="$(arg dyn_check_horizon)"/>
+    <arg name="yaw_mode" value="$(arg yaw_mode)"/>
 
     <arg name="takeoff_height"       value="$(arg takeoff_height)"/>
 
@@ -137,6 +145,7 @@
          phát đích. Để hệ thống ổn định, tránh đo cả giai đoạn khởi động. -->
     <param name="goal_delay" value="4.0"/>
     <param name="takeoff_height" value="$(arg takeoff_height)"/>
+    <param name="goal_z" value="$(arg goal_z)"/>   <!-- [CD2] -->
   </node>
 
 </launch>

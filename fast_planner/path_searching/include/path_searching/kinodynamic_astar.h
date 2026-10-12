@@ -127,6 +127,15 @@ class KinodynamicAstar {
   double max_vel_, max_acc_;
   double w_time_, horizon_, lambda_heu_;
   int allocate_num_, check_num_;
+  /* [CD2] Bong bong thoat. Khi diem xuat phat NAM TRONG vung cam (vet quet vat
+     can dong lan toi UAV), moi buoc di dau tien deu cham vung cam va bi loai ->
+     "open set empty, no path" hang tram lan lien tiep. Trong ban kinh
+     start_escape_ quanh diem xuat phat thi bo qua kiem va chach, de A* tim duoc
+     duong DI RA. Chi bat khi diem xuat phat thuc su bi chiem. */
+  double start_escape_;
+  bool   escape_active_;
+  Eigen::Vector3d search_start_;
+  bool occupiedForSearch(const Eigen::Vector3d& pos);
   double tie_breaker_;
   bool optimistic_;
 

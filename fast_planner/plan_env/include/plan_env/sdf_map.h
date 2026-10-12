@@ -123,6 +123,7 @@ struct MappingData {
   std::vector<double> occupancy_buffer_;
   std::vector<char> occupancy_buffer_neg;
   std::vector<char> occupancy_buffer_inflate_;
+  std::vector<char> dyn_only_buffer_;   // [CD2] o bi chiem CHI boi vet quet vat can dong
   std::vector<double> distance_buffer_;
   std::vector<double> distance_buffer_neg_;
   std::vector<double> distance_buffer_all_;
@@ -192,6 +193,8 @@ public:
   inline int getOccupancy(Eigen::Vector3d pos);
   inline int getOccupancy(Eigen::Vector3i id);
   inline int getInflateOccupancy(Eigen::Vector3d pos);
+  inline int getDynOnly(const Eigen::Vector3d& pos);   // [CD2] 1 = chi do vet quet
+  bool nearRealOccupied(const Eigen::Vector3d& pos, double r);   // [CD2] co o vat can THAT trong ban kinh r?
 
   inline void boundIndex(Eigen::Vector3i& id);
   inline bool isUnknown(const Eigen::Vector3i& id);
@@ -446,6 +449,13 @@ inline int SDFMap::getOccupancy(Eigen::Vector3d pos) {
   posToIndex(pos, id);
 
   return md_.occupancy_buffer_[toAddress(id)] > mp_.min_occupancy_log_ ? 1 : 0;
+}
+
+inline int SDFMap::getDynOnly(const Eigen::Vector3d& pos) {   // [CD2]
+  if (!isInMap(pos)) return 0;
+  Eigen::Vector3i id;
+  posToIndex(pos, id);
+  return int(md_.dyn_only_buffer_[toAddress(id)]);
 }
 
 inline int SDFMap::getInflateOccupancy(Eigen::Vector3d pos) {

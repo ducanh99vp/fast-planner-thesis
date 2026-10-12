@@ -117,6 +117,7 @@ void SDFMap::initMap(ros::NodeHandle& nh) {
   md_.occupancy_buffer_ = vector<double>(buffer_size, mp_.clamp_min_log_ - mp_.unknown_flag_);
   md_.occupancy_buffer_neg = vector<char>(buffer_size, 0);
   md_.occupancy_buffer_inflate_ = vector<char>(buffer_size, 0);
+  md_.dyn_only_buffer_ = vector<char>(buffer_size, 0);   // [CD2]
 
   md_.distance_buffer_ = vector<double>(buffer_size, 10000);
   md_.distance_buffer_neg_ = vector<double>(buffer_size, 10000);
@@ -219,6 +220,7 @@ void SDFMap::resetBuffer(Eigen::Vector3d min_pos, Eigen::Vector3d max_pos) {
     for (int y = min_id(1); y <= max_id(1); ++y)
       for (int z = min_id(2); z <= max_id(2); ++z) {
         md_.occupancy_buffer_inflate_[toAddress(x, y, z)] = 0;
+        md_.dyn_only_buffer_[toAddress(x, y, z)] = 0;   // [CD2]
         md_.distance_buffer_[toAddress(x, y, z)] = 10000;
       }
 }
@@ -800,6 +802,23 @@ void SDFMap::dynObjCallback(const visualization_msgs::MarkerConstPtr& msg) {
  * CHI ve trong hop ±local_update_range_ quanh UAV: do la vung ma resetBuffer()
  * xoa moi khung hinh. Ve ra ngoai thi khong bao gio duoc xoa -> vet ma. Sau do
  * noi rong local_bound_ de ESDF duoc tinh lai ca o vung vua ve. */
+/* [CD2] Co o nao bi chiem boi vat can THAT (khong phai chi do vet quet) trong
+ * hinh lap phuong canh 2r quanh pos khong. Dung cho phep kiem quy dao 20 Hz. */
+bool SDFMap::nearRealOccupied(const Eigen::Vector3d& pos, double r) {
+  Eigen::Vector3i lo, hi;
+  posToIndex(pos - Eigen::Vector3d(r, r, r), lo);
+  posToIndex(pos + Eigen::Vector3d(r, r, r), hi);
+  boundIndex(lo);
+  boundIndex(hi);
+  for (int x = lo(0); x <= hi(0); ++x)
+    for (int y = lo(1); y <= hi(1); ++y)
+      for (int z = lo(2); z <= hi(2); ++z) {
+        const int a = toAddress(x, y, z);
+        if (md_.occupancy_buffer_inflate_[a] == 1 && md_.dyn_only_buffer_[a] == 0) return true;
+      }
+  return false;
+}
+
 void SDFMap::markDynSweep() {
   if (mp_.dyn_sweep_T_ < 0.0 || dyn_objs_.empty()) return;
   const double tnow = ros::Time::now().toSec();
@@ -841,7 +860,12 @@ void SDFMap::markDynSweep() {
     const int za = std::max(iz0(2), lo(2)), zb = std::min(iz1(2), hi(2));
     for (long key : cols) {
       int ix = (int)(key / 100000L), iy = (int)(key % 100000L);  // toAddress can int&
-      for (int iz = za; iz <= zb; ++iz) md_.occupancy_buffer_inflate_[toAddress(ix, iy, iz)] = 1;
+      for (int iz = za; iz <= zb; ++iz) {
+        const int a = toAddress(ix, iy, iz);
+        // [CD2] o nay TRONG truoc khi ve vet quet => chi do vat can dong
+        if (md_.occupancy_buffer_inflate_[a] == 0) md_.dyn_only_buffer_[a] = 1;
+        md_.occupancy_buffer_inflate_[a] = 1;
+      }
       md_.local_bound_min_(0) = std::min(md_.local_bound_min_(0), ix);
       md_.local_bound_min_(1) = std::min(md_.local_bound_min_(1), iy);
       md_.local_bound_max_(0) = std::max(md_.local_bound_max_(0), ix);
@@ -869,7 +893,8 @@ void SDFMap::applyVirtualBounds() {
     for (int x = md_.local_bound_min_(0); x <= md_.local_bound_max_(0); ++x)
       for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y)
         for (int z = 0; z <= floor_id; ++z)
-          md_.occupancy_buffer_inflate_[toAddress(x, y, z)] = 1;
+          { md_.occupancy_buffer_inflate_[toAddress(x, y, z)] = 1;
+            md_.dyn_only_buffer_[toAddress(x, y, z)] = 0; }   // [CD2] san la vat can that
   }
 
   // Tran ao: gioi han do cao bay.
@@ -878,7 +903,8 @@ void SDFMap::applyVirtualBounds() {
     ceil_id = min(max(ceil_id, 0), mp_.map_voxel_num_(2) - 1);
     for (int x = md_.local_bound_min_(0); x <= md_.local_bound_max_(0); ++x)
       for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y)
-        md_.occupancy_buffer_inflate_[toAddress(x, y, ceil_id)] = 1;
+      { md_.occupancy_buffer_inflate_[toAddress(x, y, ceil_id)] = 1;
+        md_.dyn_only_buffer_[toAddress(x, y, ceil_id)] = 0; }   // [CD2]
   }
 }
 

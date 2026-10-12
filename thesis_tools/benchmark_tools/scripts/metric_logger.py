@@ -34,6 +34,7 @@ from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Float64MultiArray
 from visualization_msgs.msg import Marker   # [CD2] vat can dong
+from plan_manage.msg import Bspline          # [CD2] quy dao duoc phat, de dem doi phia
 import sensor_msgs.point_cloud2 as pc2
 
 try:
@@ -55,6 +56,8 @@ FIELDS = [
     "T_f", "L", "v_mean", "v_max", "v_cmd_max","v_cmd_axis_max", "S_J", "j_rms", "dacc_mean", "dacc_max", "d_min", "d_p5", "d_min_cmd", "z_min_flight",
     # [CD2] vat can dong: tom tat moi luot
     "n_enc", "n_hit", "d_min_dyn", "d_p5_dyn",
+    "n_plan", "n_flip", "yaw_total",   # [CD2] do du / lat trai-phai
+    "tilt_max", "tilt_p99", "n_tilt15",  # [CD2] mat thang bang: goc nghieng than (do)
     "N_replan", "N_fail",
     "t_fe_mean", "t_fe_max", "t_be_mean", "t_be_max", "t_be_p95",
     "start_x", "start_y", "goal_x", "goal_y",
@@ -114,6 +117,7 @@ class MetricLogger(object):
         self.trial      = int(rospy.get_param("~trial", 0))
         self.goal_x     = float(rospy.get_param("~goal_x", 5.0))
         self.goal_y     = float(rospy.get_param("~goal_y", 0.0))
+        self.goal_z     = float(rospy.get_param("~goal_z", 1.0))   # [CD2] trung fsm/goal_z
 
         # [CD2] vat can dong -------------------------------------------------
         # enc_thresh: khoang cach bat dau tinh la MOT LAN CHAM TRAN.
@@ -130,6 +134,20 @@ class MetricLogger(object):
         self.encounters  = []     # danh sach lan cham tran da ket thuc
         self.dyn_d_list  = []
         self.d_min_dyn   = float("inf")
+        # [CD2] lat trai-phai. Moi quy dao moi: lay doan ~1-2.7 s phia truoc
+        # (diem dieu khien 3..8), do do lech NGANG so voi vi tri hien tai.
+        # Huong toi dich la truc x nen "ngang" la truc y. Bo qua khi lech qua
+        # nho (|lat| < flip_min), roi dem so lan doi dau giua hai quy dao lien
+        # tiep: do la so lan planner DOI Y lach trai <-> phai.
+        self.flip_min    = float(rospy.get_param("~flip_min", 0.3))
+        self.n_plan      = 0
+        self.n_flip      = 0
+        self.last_side   = 0
+        self.yaw_prev    = None
+        self.yaw_total   = 0.0
+        self.tilts       = []      # [CD2] goc nghieng than moi mau odom (do)
+        self.n_tilt15    = 0       # so LAN nghieng > 15 do (cach nhau >= 1 s)
+        self.t_tilt15    = -1e9
         self.timeout    = float(rospy.get_param("~timeout", 120.0))
         self.goal_tol   = float(rospy.get_param("~goal_tol", 0.6))
         self.uav_radius = float(rospy.get_param("~uav_radius", 0.2))
@@ -182,6 +200,7 @@ class MetricLogger(object):
         rospy.Subscriber("/map_generator/global_cloud", PointCloud2,
                          self.cb_cloud, queue_size=1)
         rospy.Subscriber("/dynamic/obj", Marker, self.cb_dynobj, queue_size=50)  # [CD2]
+        rospy.Subscriber("/planning/bspline", Bspline, self.cb_bspline, queue_size=10)  # [CD2]
         rospy.Subscriber("/visual_slam/odom", Odometry, self.cb_odom, queue_size=50)
         rospy.Subscriber("/benchmark/timing", Float64MultiArray,
                          self.cb_timing, queue_size=50)
@@ -217,6 +236,21 @@ class MetricLogger(object):
                 v = 0.6 * old["v"] + 0.4 * v      # lam tron nhe
             self.dyn_objs[msg.id] = {"c": c, "scale": sc, "type": msg.type,
                                      "v": v, "t": t}
+
+    def cb_bspline(self, msg):
+        """[CD2] Dem quy dao va so lan doi phia lach."""
+        with self.lock:
+            if self.finished or not self.goal_sent or len(msg.pos_pts) < 9:
+                return
+            self.n_plan += 1
+            y0 = msg.pos_pts[1].y
+            lat = sum(pt.y for pt in msg.pos_pts[3:9]) / 6.0 - y0
+            if abs(lat) < self.flip_min:
+                return
+            side = 1 if lat > 0 else -1
+            if self.last_side != 0 and side != self.last_side:
+                self.n_flip += 1
+            self.last_side = side
 
     def _update_encounters(self, p, v_uav, t):
         """Theo doi tung vat can; mot LAN CHAM TRAN la mot cuc tieu dia phuong
@@ -301,6 +335,23 @@ class MetricLogger(object):
             self.have_odom = True
             self.last_pos = p
 
+            # [CD2] tong goc quay than UAV (do), tinh tu luc phat dich
+            if self.goal_sent:
+                q = msg.pose.pose.orientation
+                yw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+                if self.yaw_prev is not None:
+                    dy = (yw - self.yaw_prev + math.pi) % (2 * math.pi) - math.pi
+                    self.yaw_total += abs(dy)
+                self.yaw_prev = yw
+                # [CD2] goc giua truc z than va truc z the gioi
+                tl = math.degrees(math.acos(max(-1.0, min(1.0, 1 - 2 * (q.x * q.x + q.y * q.y)))))
+                self.tilts.append(tl)
+                tn = msg.header.stamp.to_sec()
+                if tl > 15.0:
+                    if tn - self.t_tilt15 > 1.0:
+                        self.n_tilt15 += 1
+                    self.t_tilt15 = tn
+
             if not self.goal_sent:
                 if self.start_pos is None:
                     self.start_pos = p.copy()
@@ -340,7 +391,7 @@ class MetricLogger(object):
                                         else rospy.Time.now().to_sec())
 
             # tới đích chưa
-            goal = np.array([self.goal_x, self.goal_y, 1.0])
+            goal = np.array([self.goal_x, self.goal_y, self.goal_z])   # [CD2]
             if np.linalg.norm(p - goal) < self.goal_tol:
                 self.success = True
                 self._finish("tới đích")
@@ -429,7 +480,7 @@ class MetricLogger(object):
         ps.header = path.header
         ps.pose.position.x = self.goal_x
         ps.pose.position.y = self.goal_y
-        ps.pose.position.z = 1.0           # FSM ép về 1.0 dù gửi gì
+        ps.pose.position.z = self.goal_z   # [CD2] FSM dung fsm/goal_z
         ps.pose.orientation.w = 1.0
         path.poses.append(ps)
         self.goal_pub.publish(path)
@@ -498,6 +549,12 @@ class MetricLogger(object):
                          if self.d_min_dyn < float("inf") else "",
             "d_p5_dyn": round(float(np.nanpercentile(dd, 5)), 4)
                         if self.dyn_d_list else "",
+            "n_plan": self.n_plan,
+            "n_flip": self.n_flip,
+            "yaw_total": round(math.degrees(self.yaw_total), 1),
+            "tilt_max": round(max(self.tilts), 1) if self.tilts else float("nan"),
+            "tilt_p99": round(float(np.percentile(self.tilts, 99)), 1) if self.tilts else float("nan"),
+            "n_tilt15": self.n_tilt15,
             "n_odom": self.n_odom,
             "stamp": rospy.Time.now().to_sec(),
         }

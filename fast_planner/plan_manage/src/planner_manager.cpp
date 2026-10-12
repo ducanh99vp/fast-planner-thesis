@@ -43,6 +43,11 @@ void FastPlannerManager::initPlanModules(ros::NodeHandle& nh) {
   nh.param("manager/max_acc", pp_.max_acc_, -1.0);
   nh.param("manager/max_jerk", pp_.max_jerk_, -1.0);
   nh.param("manager/dynamic_environment", pp_.dynamic_, -1);
+  /* [CD2] huong B: diem quy dao XA hon chan troi nay (giay) ma chi cham VET QUET
+     (khong cham vat can that) thi KHONG bat lap lai ke hoach. < 0 = tat. */
+  nh.param("manager/dyn_check_horizon", pp_.dyn_check_horizon_, -1.0);
+  nh.param("manager/yaw_mode", pp_.yaw_mode_, 0);
+  nh.param("manager/yaw_hold_dist", pp_.yaw_hold_dist_, 1.0);
   nh.param("manager/clearance_threshold", pp_.clearance_, -1.0);
   nh.param("manager/local_segment_length", pp_.local_traj_len_, -1.0);
   nh.param("manager/control_points_distance", pp_.ctrl_pt_dist, -1.0);
@@ -118,8 +123,16 @@ bool FastPlannerManager::checkTrajCollision(double& distance) {
 
     double dist = edt_environment_->evaluateCoarseEDT(fut_pt, -1.0);
     if (dist < 0.1) {
-      distance = radius;
-      return false;
+      /* [CD2] huong B. Vet quet chi dung cho dyn_sweep_T giay toi, nhung phep kiem
+         nay soi toi ~6 m (~4 s). Diem UAV con lau moi toi ma "cham" vet quet thi
+         khong phan anh nguy co that, chi lam lap lai ke hoach thua (do duoc: tuong
+         quan so lan lap lai voi do dai duong +0.90). Vat can THAT thi van bat. */
+      const bool chi_vet_quet = pp_.dyn_check_horizon_ > 0.0 && fut_t > pp_.dyn_check_horizon_ &&
+                                !edt_environment_->sdf_map_->nearRealOccupied(fut_pt, 0.15);
+      if (!chi_vet_quet) {
+        distance = radius;
+        return false;
+      }
     }
 
     radius = (fut_pt - cur_pt).norm();
@@ -173,6 +186,12 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
 
     if (status == KinodynamicAstar::NO_PATH) {
       cout << "[kino replan]: Can't find path." << endl;
+      /* [CD2] chan doan: diem xuat phat co nam TRONG vung cam khong? Neu co thi
+         moi buoc di dau tien deu cham vung cam va bi loai -> "open set empty". */
+      cout << "[CD2] tim duong that bai: diem xuat phat bi chiem = "
+           << edt_environment_->sdf_map_->getInflateOccupancy(start_pt)
+           << ", khoang cach toi vat can gan nhat = "
+           << edt_environment_->sdf_map_->getDistance(start_pt) << " m" << endl;
       publishTiming((ros::Time::now() - t1).toSec() * 1000.0, 0.0, false);
       return false;
     } else {
@@ -643,13 +662,25 @@ void FastPlannerManager::planYaw(const Eigen::Vector3d& start_yaw) {
     Eigen::Vector3d pd = pf - pc;
 
     Eigen::Vector3d waypt;
-    if (pd.norm() > 1e-6) {
+    /* [CD2] Che do 2: UAV gan dung yen (dang phanh, nhuong vat can) thi huong pd chi
+       la nhieu cua mot doan quy dao rat ngan, xoay toi 180 do trong vai phan giay.
+       Giu nguyen huong mui thay vi bam theo no. */
+    const bool giu_huong = pp_.yaw_mode_ >= 2 && pd.head<2>().norm() < pp_.yaw_hold_dist_;
+    if (pd.norm() > 1e-6 && !giu_huong) {
       waypt(0) = atan2(pd(1), pd(0));
       waypt(1) = waypt(2) = 0.0;
       calcNextYaw(last_yaw, waypt(0));
+    } else if (pp_.yaw_mode_ >= 1) {
+      waypt = Eigen::Vector3d(last_yaw, 0.0, 0.0);  // ban goc: waypts.back() vo khi i = 0
     } else {
       waypt = waypts.back();
     }
+    /* [CD2] Loi QUAN GOC cua ban goc: last_yaw khong bao gio duoc cap nhat, nen moi
+       diem moc bi quy ve [-pi, pi] quanh goc XUAT PHAT thay vi quanh diem lien truoc.
+       Khi huong bay vuot qua phia doi dien huong xuat phat, hai diem moc canh nhau
+       lech ~2*pi va bo toi uu noi chung bang mot VONG XOAY TRON (do duoc: 490-560 do
+       trong ~3 s, o 4/4 luot xoay manh). */
+    if (pp_.yaw_mode_ >= 1) last_yaw = waypt(0);
     waypts.push_back(waypt);
     waypt_idx.push_back(i);
   }
@@ -666,6 +697,8 @@ void FastPlannerManager::planYaw(const Eigen::Vector3d& start_yaw) {
 
   Eigen::Vector3d end_v = local_data_.velocity_traj_.evaluateDeBoorT(duration - 0.1);
   Eigen::Vector3d end_yaw(atan2(end_v(1), end_v(0)), 0, 0);
+  // [CD2] che do 2: van toc cuoi ~0 (toi dich, dung lai) thi atan2 chi la nhieu
+  if (pp_.yaw_mode_ >= 2 && end_v.head<2>().norm() < 0.3) end_yaw(0) = last_yaw;
   calcNextYaw(last_yaw, end_yaw(0));
   yaw.block(seg_num, 0, 3, 1) = states2pts * end_yaw;
 

@@ -39,6 +39,7 @@ void KinoReplanFSM::init(ros::NodeHandle& nh) {
   nh.param("fsm/thresh_replan", replan_thresh_, -1.0);
   nh.param("fsm/thresh_no_replan", no_replan_thresh_, -1.0);
   nh.param("fsm/takeoff_height", takeoff_height_, -1.0);  // [Luan van - M3]
+  nh.param("fsm/goal_z", goal_z_, 1.0);   // [CD2] goc HKUST ep cung z dich = 1.0
   takeoff_planned_ = false;
 
   nh.param("fsm/waypoint_num", waypoint_num_, -1);
@@ -73,7 +74,7 @@ void KinoReplanFSM::waypointCallback(const nav_msgs::PathConstPtr& msg) {
   trigger_ = true;
 
   if (target_type_ == TARGET_TYPE::MANUAL_TARGET) {
-    end_pt_ << msg->poses[0].pose.position.x, msg->poses[0].pose.position.y, 1.0;
+    end_pt_ << msg->poses[0].pose.position.x, msg->poses[0].pose.position.y, goal_z_;  // [CD2]
 
   } else if (target_type_ == TARGET_TYPE::PRESET_TARGET) {
     end_pt_(0)  = waypoints_[current_wp_][0];

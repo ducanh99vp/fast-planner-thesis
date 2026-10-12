@@ -55,7 +55,10 @@ MAPS = {
                 # virtual_floor -0.05: ban do HKUST KHONG co mat dat, vung z in [-1, 0)
                 # trong tron -> P2 ep UAV chui xuong duoi vat can (lenh z toi -1.73 m)
                 extra=["p_num:=60", "c_num:=10", "p_hmin:=3.0", "dyn_xy_y:=3.0",
-                       "virtual_floor:=-0.05"])
+                       "virtual_floor:=-0.05",
+                       # cat canh 0.5 m (nguoi dung chot 12/10/2026); giua chung UAV bay TU DO
+                       # trong [san ao, tran ao 2.5]. FSM goc ep z dich = 1.0 -> goal_z
+                       "takeoff_height:=0.5", "goal_z:=0.5"])
 }
 
 # Tham so bay chung cho moi ban do
@@ -81,6 +84,17 @@ CONFIGS = {
     "SW10": ["dyn_sweep_T:=1.0"],
     "SW15": ["dyn_sweep_T:=1.5"],
     "SW25": ["dyn_sweep_T:=2.5"],
+    # SW15 + bong bong thoat 0.6 m cua A*: bo qua o CHI do vet quet quanh diem
+    # xuat phat. Truoc khi co: 623 lan tim duong that bai / 10 hat, 99% do diem
+    # xuat phat nam trong vet quet.
+    "SW15E": ["dyn_sweep_T:=1.5", "start_escape:=0.6"],
+    # SW15 + huong B: phep kiem va cham 20 Hz BO QUA diem qua 1.5 s toi neu diem do
+    # CHI cham vet quet (khong co vat can that trong 0.15 m) -> bot lap lai [SAFETY]
+    "SW15H": ["dyn_sweep_T:=1.5", "dyn_check_horizon:=1.5"],
+    # SW15H + sua huong mui (planYaw): Y1 = sua loi quan goc; Y2 = Y1 + giu huong khi
+    # UAV gan dung yen. Truoc khi sua: P2 xoay than 560-600 do/luot (P0 124 do).
+    "SW15HY1": ["dyn_sweep_T:=1.5", "dyn_check_horizon:=1.5", "yaw_mode:=1"],
+    "SW15HY2": ["dyn_sweep_T:=1.5", "dyn_check_horizon:=1.5", "yaw_mode:=2"],
 
 
 }
@@ -91,12 +105,13 @@ def map_args(map_name):
     m = MAPS[map_name]
     base = (["use_pcd:=false"] if m.get("pcd") is None else
             ["use_pcd:=true", "map_file:=%s/%s.pcd" % (MAPS_DIR, m["pcd"])])
-    return base + m.get("extra", []) + [
+    return base + [
             "map_size_x:=%.1f" % m["size"][0],
             "map_size_y:=%.1f" % m["size"][1],
             "map_size_z:=%.1f" % m["size"][2],
             "init_x:=%.2f" % m["start"][0],
-            "init_y:=%.2f" % m["start"][1]] + FLIGHT_ARGS
+            "init_y:=%.2f" % m["start"][1]] + FLIGHT_ARGS + m.get("extra", [])
+    # [CD2] extra dat SAU FLIGHT_ARGS: roslaunch lay gia tri CUOI, nen ban do ghi de duoc
 
 
 def count_rows(path):

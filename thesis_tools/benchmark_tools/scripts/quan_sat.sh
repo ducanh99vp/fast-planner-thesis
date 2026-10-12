@@ -12,6 +12,7 @@
 #   SEED0=40 DYN=8 P=30 C=5 ./quan_sat.sh 10
 #   SEED0=10 ./quan_sat.sh 5          # 5 hat KHAC nhau: 10, 11, 12, 13, 14
 #   SEED0=10 LAP=1 ./quan_sat.sh 5    # hat 10, lap lai 5 lan
+#   T=1.5 YM=0 SEED0=21 ./quan_sat.sh 3   # P2, huong mui BAN GOC (de thay xoay vong)
 set -u
 
 N=${1:-20}             # so luot
@@ -24,6 +25,8 @@ H=${H:-3.0}            # chieu cao thap nhat cua cot (3.0 = khong bay vuot)
 Y=${Y:-3.0}            # nua be rong hanh lang sinh vat can dong quanh y = 0
 T=${T:--1.0}           # P2: chan troi vet quet (s); -1 = tat, tuc la P0
 F=${F:--0.05}          # san ao (m): -0.05 = mat dat that, chan vung duoi z = 0
+Z=${Z:-0.5}            # do cao bay (cat canh + dich)
+YM=${YM:-1}            # huong mui: 0 = ban goc (co loi quan goc -> xoay vong vo co), 1 = da sua
 TMO=${TMO:-70}         # gioi han moi luot (giay)
 OUT=/tmp/quan_sat.csv  # ghi ra /tmp, khong lan vao results/
 
@@ -36,13 +39,13 @@ trap 'echo; echo "Dung theo yeu cau."; kill 0' INT
 
 for ((k = 0; k < N; k++)); do
   if [ "$LAP" = "1" ]; then SEED=$SEED0; else SEED=$((SEED0 + k)); fi
-  echo "=== luot $((k + 1))/$N  |  hat $SEED  |  $DYN vat can dong (|y|<=$Y m), $P cot cao >= $H m, $C vanh, vet quet T=$T ==="
+  echo "=== luot $((k + 1))/$N  |  hat $SEED  |  $DYN vat can dong (|y|<=$Y m), $P cot cao >= $H m, $C vanh, vet quet T=$T, yaw_mode=$YM ==="
   roslaunch benchmark_tools bench.launch \
     map_name:=QS config:=QS trial:=$k goal_x:=19.0 goal_y:=0.0 timeout:=$TMO \
     use_pcd:=false map_size_x:=40.0 map_size_y:=20.0 map_size_z:=5.0 \
-    init_x:=-19.0 init_y:=0.0 init_z:=0.0 takeoff_height:=1.0 \
+    init_x:=-19.0 init_y:=0.0 init_z:=0.0 takeoff_height:=$Z goal_z:=$Z \
     max_vel:=1.5 max_acc:=1.5 p_num:=$P c_num:=$C p_hmin:=$H \
-    dyn_obs:=1 dyn_num:=$DYN dyn_seed:=$SEED dyn_xy_y:=$Y dyn_sweep_T:=$T virtual_floor:=$F \
+    dyn_obs:=1 dyn_num:=$DYN dyn_seed:=$SEED dyn_xy_y:=$Y dyn_sweep_T:=$T virtual_floor:=$F yaw_mode:=$YM \
     out_csv:=$OUT enc_csv:=/tmp/quan_sat_enc.csv 2>&1 \
     | grep --line-buffered -E "Cham tran voi vat can dong|Kết thúc|VA CHẠM" \
     | sed -u 's/\x1b\[[0-9;]*m//g; s/^.*\[metric_logger\] /    /'

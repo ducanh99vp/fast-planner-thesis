@@ -32,6 +32,13 @@
        < 0 = tat (giu nguyen P0). inflate < 0 = dung lai inflation cua vat can tinh -->
   <arg name="dyn_sweep_T"       default="-1.0"/>
   <arg name="dyn_sweep_inflate" default="-1.0"/>
+  <!-- [CD2] bong bong thoat cua A* (m) khi diem xuat phat bi chiem. 0 = tat -->
+  <arg name="start_escape" default="0.0"/>
+  <!-- [CD2] do cao dich (m); goc ep cung 1.0 -->
+  <arg name="goal_z" default="1.0"/>
+  <!-- [CD2] huong B: chan troi (s) ma ngoai do, cham CHI vet quet khong bat lap lai. < 0 = tat -->
+  <arg name="dyn_check_horizon" default="-1.0"/>
+  <arg name="yaw_mode" default="0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -65,6 +72,7 @@
     <param name="fsm/thresh_replan" value="1.5" type="double"/>
     <param name="fsm/thresh_no_replan" value="2.0" type="double"/>
     <param name="fsm/takeoff_height" value="$(arg takeoff_height)" type="double"/>
+    <param name="fsm/goal_z" value="$(arg goal_z)" type="double"/>
 
     <param name="fsm/waypoint_num" value="$(arg point_num)" type="int"/>
     <param name="fsm/waypoint0_x" value="$(arg point0_x)" type="double"/>
@@ -126,6 +134,8 @@
     <param name="manager/max_acc" value="$(arg max_acc)" type="double"/>
     <param name="manager/max_jerk" value="4" type="double"/>
     <param name="manager/dynamic_environment" value="0" type="int"/>
+    <param name="manager/dyn_check_horizon" value="$(arg dyn_check_horizon)" type="double"/>
+    <param name="manager/yaw_mode" value="$(arg yaw_mode)" type="int"/>
     <param name="manager/local_segment_length" value="6.0" type="double"/>
     <param name="manager/clearance_threshold" value="0.2" type="double"/>
     <param name="manager/control_points_distance" value="$(arg ctrl_pt_dist)" type="double"/>
@@ -148,6 +158,7 @@
     <param name="search/margin" value="0.2" type="double"/>
     <param name="search/allocate_num" value="100000" type="int"/>
     <param name="search/check_num" value="5" type="int"/>
+    <param name="search/start_escape" value="$(arg start_escape)" type="double"/>
 
   <!-- trajectory optimization -->
     <param name="optimization/lambda1" value="10.0" type="double"/>

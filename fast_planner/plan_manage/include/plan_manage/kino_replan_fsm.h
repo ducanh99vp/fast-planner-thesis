@@ -84,6 +84,7 @@ private:
   int target_type_;  // 1 mannual select, 2 hard code
   double no_replan_thresh_, replan_thresh_;
   double takeoff_height_;  // [Luan van - M3] <= 0: tat pha cat canh
+  double goal_z_;   // [CD2] do cao dich; goc ep cung 1.0
   double waypoints_[50][3];
   int waypoint_num_;
 

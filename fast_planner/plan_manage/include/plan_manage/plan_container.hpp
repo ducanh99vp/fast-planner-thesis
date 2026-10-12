@@ -193,6 +193,11 @@ struct PlanParameters {
                                          // control points
   double clearance_;
   int dynamic_;
+  double dyn_check_horizon_ = -1.0;   // [CD2] huong B; < 0 = tat
+  /* [CD2] Huong mui (planYaw). 0 = goc; 1 = sua loi quan goc; 2 = 1 + giu huong khi
+     UAV gan dung yen (quang di trong forward_t < yaw_hold_dist_) */
+  int    yaw_mode_      = 0;
+  double yaw_hold_dist_ = 1.0;
   /* processing time */
   double time_search_ = 0.0;
   double time_optimize_ = 0.0;

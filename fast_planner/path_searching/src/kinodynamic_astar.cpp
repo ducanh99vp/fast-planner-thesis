@@ -38,6 +38,20 @@ KinodynamicAstar::~KinodynamicAstar()
   }
 }
 
+/* [CD2] Kiem chiem dung cho A*, co bong bong thoat quanh diem xuat phat.
+ * Ban dau: chi bat khi diem xuat phat bi chiem -> giam that bai 623 -> 50 lan
+ * tren 10 hat. 50 lan con lai deu co diem xuat phat CHUA bi chiem nhung chi cach
+ * mep 0.1-0.3 m, buoc di dau tien lai cham vung cam.
+ * Ban sau: trong bong bong, bo qua o CHI DO VET QUET (dyn_only), LUON LUON; o
+ * vat can that (cot, tuong, san) KHONG BAO GIO duoc bo qua -> khong cat qua cot. */
+bool KinodynamicAstar::occupiedForSearch(const Eigen::Vector3d& pos) {
+  if (edt_environment_->sdf_map_->getInflateOccupancy(pos) != 1) return false;
+  if (start_escape_ > 0.0 && (pos - search_start_).norm() < start_escape_ &&
+      edt_environment_->sdf_map_->getDynOnly(pos) == 1)
+    return false;
+  return true;
+}
+
 int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, Eigen::Vector3d start_a,
                              Eigen::Vector3d end_pt, Eigen::Vector3d end_v, bool init, bool dynamic, double time_start)
 {
@@ -47,6 +61,10 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
   PathNodePtr cur_node = path_node_pool_[0];
   cur_node->parent = NULL;
   cur_node->state.head(3) = start_pt;
+  // [CD2] bong bong thoat chi bat khi diem xuat phat dang bi chiem
+  search_start_  = start_pt;
+  escape_active_ = start_escape_ > 0.0 &&
+                   edt_environment_->sdf_map_->getInflateOccupancy(start_pt) == 1;
   cur_node->state.tail(3) = start_v;
   cur_node->index = posToIndex(start_pt);
   cur_node->g_score = 0.0;
@@ -217,7 +235,7 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
           double dt = tau * double(k) / double(check_num_);
           stateTransit(cur_state, xt, um, dt);
           pos = xt.head(3);
-          if (edt_environment_->sdf_map_->getInflateOccupancy(pos) == 1 )
+          if (occupiedForSearch(pos))   // [CD2] co bong bong thoat
           {
             is_occ = true;
             break;
@@ -334,6 +352,8 @@ void KinodynamicAstar::setParam(ros::NodeHandle& nh)
   nh.param("search/lambda_heu", lambda_heu_, -1.0);
   nh.param("search/allocate_num", allocate_num_, -1);
   nh.param("search/check_num", check_num_, -1);
+  nh.param("search/start_escape", start_escape_, 0.0);   // [CD2] 0 = tat
+  escape_active_ = false;
   nh.param("search/optimistic", optimistic_, true);
   tie_breaker_ = 1.0 + 1.0 / 10000;
 
@@ -452,7 +472,7 @@ bool KinodynamicAstar::computeShotTraj(Eigen::VectorXd state1, Eigen::VectorXd s
     // if (edt_environment_->evaluateCoarseEDT(coord, -1.0) <= margin_) {
     //   return false;
     // }
-    if (edt_environment_->sdf_map_->getInflateOccupancy(coord) == 1)
+    if (occupiedForSearch(coord))   // [CD2] co bong bong thoat
     {
       return false;
     }
