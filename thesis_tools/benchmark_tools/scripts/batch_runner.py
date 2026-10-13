@@ -81,6 +81,10 @@ CONFIGS = {
     # [CD2] Thang bac ne vat can dong. Ten SWxx de khong trung "P0/P1/P2" ben tren
     # (do la BO THAM SO cua M3, khong phai phuong an ne). SW = ghi VET QUET cua
     # vat can dong trong xx/10 giay toi vao ban do chiem dung.
+    # SW00: chi ve vi tri HIEN TAI cua vat can dong, khong du doan -> tach phan
+    # dong gop cua "nhin thay" khoi phan dong gop cua "du doan" (thi nghiem A)
+    "SW00": ["dyn_sweep_T:=0.0"],
+    "SW05": ["dyn_sweep_T:=0.5"],
     "SW10": ["dyn_sweep_T:=1.0"],
     "SW15": ["dyn_sweep_T:=1.5"],
     "SW25": ["dyn_sweep_T:=2.5"],
@@ -88,6 +92,12 @@ CONFIGS = {
     # xuat phat. Truoc khi co: 623 lan tim duong that bai / 10 hat, 99% do diem
     # xuat phat nam trong vet quet.
     "SW15E": ["dyn_sweep_T:=1.5", "start_escape:=0.6"],
+    # SW15 + vung phinh vat can TINH 0.2 m (= ban kinh UAV; mac dinh 0.099). Vet quet giu
+    # 0.099 de chi mot thu thay doi. Ly do: hat 35 suot cot o 5 cau hinh (d 0.14-0.18 m).
+    "SW15I2": ["dyn_sweep_T:=1.5", "inflation:=0.2", "dyn_sweep_inflate:=0.099"],
+    # === P2 HOAN CHINH (chot 13/10/2026) === SW15I2 + bong bong thoat 0.6 m. Chan doan 13/10: ca 5 va cham dong cua SW15I2 deu la
+    # UAV DUNG YEN sau ~2 s lap ke hoach that bai lien tuc (128-200 lan), vat can khong doi huong.
+    "SW15I2E": ["dyn_sweep_T:=1.5", "inflation:=0.2", "dyn_sweep_inflate:=0.099", "start_escape:=0.6"],
     # SW15 + huong B: phep kiem va cham 20 Hz BO QUA diem qua 1.5 s toi neu diem do
     # CHI cham vet quet (khong co vat can that trong 0.15 m) -> bot lap lai [SAFETY]
     "SW15H": ["dyn_sweep_T:=1.5", "dyn_check_horizon:=1.5"],
@@ -188,6 +198,8 @@ def main():
     # hai phuong an chay cung --trials se gap DUNG cung mot kich ban
     ap.add_argument("--dyn", type=int, default=0,
                     help="so vat can dong (0 = tat)")
+    ap.add_argument("--seed0", type=int, default=1,
+                    help="hat giong cua luot dau (luot t dung hat seed0 + t); 41 = bo hat 41-80")
     ap.add_argument("--extra", nargs="*", default=[],
                     help="tham số roslaunch bổ sung, ví dụ dynamic_env:=1")
     a = ap.parse_args()
@@ -234,7 +246,7 @@ def main():
                 extra = list(a.extra)
                 if a.dyn > 0:   # [CD2] dat truoc --extra de van ghi de duoc
                     extra = ["dyn_obs:=1", "dyn_num:=%d" % a.dyn,
-                             "dyn_seed:=%d" % (t + 1)] + extra
+                             "dyn_seed:=%d" % (t + a.seed0)] + extra
                 ok = run_one(m, c, t, g, a.out, a.timeout, extra)
                 if not ok:
                     failed += 1
