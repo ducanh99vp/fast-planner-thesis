@@ -73,6 +73,12 @@ public:
   EDTEnvironment::Ptr edt_environment_;
   ros::Publisher timing_pub_;
   void publishTiming(double t_fe_ms, double t_be_ms, bool ok);
+  /* [CD1] Duong toan cuc: A* hinh hoc tren toan ban do da nho, khong gioi han ban kinh. */
+  bool planGlobalPath(const Eigen::Vector3d& start, const Eigen::Vector3d& end,
+                      vector<Eigen::Vector3d>& path);
+  double t_global_ms_ = 0.0;   // [CD1] cong vao t_fe cua lan lap ke hoach ngay sau
+  bool globalPathFree(const vector<Eigen::Vector3d>& path, size_t from);   // [CD1]
+  bool segmentFree(const Eigen::Vector3d& a, const Eigen::Vector3d& b);    // [CD1]
 
 private:
   /* main planning algorithms & modules */

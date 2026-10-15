@@ -41,6 +41,16 @@
   <arg name="yaw_mode" default="0"/>
   <arg name="astar_max_time" default="-1.0"/>
   <arg name="replan_latency" default="-1.0"/>
+  <!-- [CD1] ban do co tri nho + dan duong toan cuc (false = ban goc) -->
+  <arg name="keep_memory"     default="false"/>
+  <arg name="global_guide"    default="false"/>
+  <arg name="guide_dist"      default="6.0"/>
+  <arg name="guide_res"       default="0.2"/>
+  <arg name="guide_clearance" default="0.2"/>
+  <arg name="guide_vel"       default="1.0"/>
+  <arg name="guide_soft_w"    default="1.0"/>
+  <arg name="guide_zmin"      default="0.5"/>
+  <arg name="guide_zmax"      default="2.0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -144,7 +154,23 @@
     <param name="manager/clearance_threshold" value="0.2" type="double"/>
     <param name="manager/control_points_distance" value="$(arg ctrl_pt_dist)" type="double"/>
 
-    <param name="manager/use_geometric_path" value="false" type="bool"/>
+    <param name="manager/use_geometric_path" value="$(arg global_guide)" type="bool"/>   <!-- [CD1] -->
+    <param name="sdf_map/keep_memory" value="$(arg keep_memory)" type="bool"/>
+    <param name="fsm/global_guide" value="$(arg global_guide)" type="bool"/>
+    <param name="fsm/guide_dist" value="$(arg guide_dist)" type="double"/>
+    <param name="fsm/guide_vel" value="$(arg guide_vel)" type="double"/>
+    <param name="astar/soft_clearance" value="0.5" type="double"/>
+    <param name="astar/soft_weight" value="$(arg guide_soft_w)" type="double"/>
+    <param name="astar/resolution_astar" value="$(arg guide_res)" type="double"/>
+    <param name="astar/time_resolution" value="0.8" type="double"/>
+    <param name="astar/lambda_heu" value="1.5" type="double"/>
+    <param name="astar/z_min" value="$(arg guide_zmin)" type="double"/>
+    <param name="astar/z_max" value="$(arg guide_zmax)" type="double"/>
+    <param name="astar/z_weight" value="3.0" type="double"/>
+    <param name="astar/margin" value="0.2" type="double"/>
+    <param name="astar/allocate_num" value="400000" type="int"/>
+    <param name="astar/use_occ" value="true" type="bool"/>
+    <param name="astar/clearance" value="$(arg guide_clearance)" type="double"/>
     <param name="manager/use_kinodynamic_path" value="true" type="bool"/>
     <param name="manager/use_topo_path" value="false" type="bool"/>
     <param name="manager/use_optimization" value="true" type="bool"/>

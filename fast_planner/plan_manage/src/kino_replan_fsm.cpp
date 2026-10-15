@@ -40,6 +40,11 @@ void KinoReplanFSM::init(ros::NodeHandle& nh) {
   nh.param("fsm/thresh_no_replan", no_replan_thresh_, -1.0);
   nh.param("fsm/takeoff_height", takeoff_height_, -1.0);  // [Luan van - M3]
   nh.param("fsm/goal_z", goal_z_, 1.0);   // [CD2] goc HKUST ep cung z dich = 1.0
+  nh.param("fsm/global_guide", global_guide_, false);   // [CD1] false = ban goc
+  nh.param("fsm/guide_dist", guide_dist_, 6.0);         // [CD1] > search/horizon: A* dung o chan troi, diem cuoi mem nhu ban goc
+  nh.param("fsm/guide_vel", guide_vel_, 1.0);           // [CD1]
+  nh.param("fsm/guide_hidden_r", guide_hidden_r_, 2.5); // [CD1]
+  nh.param("fsm/guide_replan_t", guide_replan_t_, 1.0); // [CD1]
   nh.param("fsm/replan_latency", replan_latency_, -1.0);   // [CD2 Indoor] <= 0 = ban goc
   takeoff_planned_ = false;
 
@@ -186,6 +191,11 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
 
       /* && (end_pt_ - pos).norm() < 0.5 */
       if (t_cur > info->duration_ - 1e-2) {
+        /* [CD1] Quy dao het o DICH TAM, chua toi dich that: lap tiep, khong dung lai. */
+        if (global_guide_ && (end_pt_ - odom_pos_).norm() > 0.5) {
+          changeFSMExecState(GEN_NEW_TRAJ, "FSM");
+          return;
+        }
         have_target_ = false;
         changeFSMExecState(WAIT_TARGET, "FSM");
         return;
@@ -194,7 +204,11 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
         // cout << "near end" << endl;
         return;
 
-      } else if ((info->start_pos_ - pos).norm() < replan_thresh_) {
+      } else if ((info->start_pos_ - pos).norm() < replan_thresh_ &&
+                 !(global_guide_ && info->duration_ - t_cur < guide_replan_t_)) {
+        /* [CD1] Dich tam gan (truoc cua, goc) -> quy dao ngan hon replan_thresh_: neu cho du
+           1.5 m moi lap lai thi UAV bay het quy dao, phanh ve ~0 roi moi lap tu dau (do 15/10:
+           I4-R2 khung o cua C, 1.6 -> 0.11 m/s). Con < guide_replan_t_ giay thi lap lai ngay. */
         // cout << "near start" << endl;
         return;
 
@@ -345,9 +359,69 @@ void KinoReplanFSM::checkCollisionCallback(const ros::TimerEvent& e) {
   }
 }
 
+/* [CD1] A* toan cuc tu diem xuat phat toi dich that tren ban do co tri nho; tra ve diem dau
+   tien tren duong cach diem xuat phat (do theo duong) >= guide_dist_. Duong ngan hon thi tra
+   ve dich that; khong tim duoc duong thi quay ve hanh vi goc (nham thang dich that).
+   Van toc tai dich tam = guide_vel_ theo huong duong: quy dao cuc bo khong phai phanh ve 0
+   o moi dich tam (lap lai moi 1.5 m nen UAV khong bao gio toi dich tam). */
+Eigen::Vector3d KinoReplanFSM::guideTarget(Eigen::Vector3d& target_vel) {
+  /* Giu duong cu neu: van dan toi dich hien tai, UAV con cach duong < 1 m, va phan con lai
+     van trong tren ban do da nho. Tranh doi qua doi lai giua hai duong dai ngang nhau (I5 doi
+     xung) va tranh chay A* toan cuc o moi lan lap ke hoach. */
+  size_t k0    = 0;
+  bool   reuse = false;
+  if (guide_path_.size() >= 2 && (guide_path_.back() - end_pt_).norm() < 0.5) {
+    double dmin = 1e9;
+    for (size_t i = 0; i < guide_path_.size(); ++i) {
+      const double d = (guide_path_[i] - start_pt_).norm();
+      if (d < dmin) { dmin = d; k0 = i; }
+    }
+    reuse = dmin < 1.0 && planner_manager_->globalPathFree(guide_path_, k0);
+  }
+  if (!reuse) {
+    vector<Eigen::Vector3d> path;
+    if (!planner_manager_->planGlobalPath(start_pt_, end_pt_, path)) {
+      ROS_WARN("[global guide] khong co duong toan cuc, nham thang dich");
+      guide_path_.clear();
+      return end_pt_;
+    }
+    guide_path_ = path;
+    k0          = 0;
+  }
+  visualization_->drawGeometricPath(guide_path_, 0.08, Eigen::Vector4d(0.0, 0.8, 0.2, 1.0), 1);
+  /* Dich tam = diem XA NHAT tren duong (<= guide_dist_ tinh theo duong) ma doan thang tu
+     diem xuat phat toi do con trong. Khong lay diem khuat sau goc tuong: A* cuc bo nham thang
+     toi dich tam nen se cat goc ep vao tuong (do 14/10: I5 va cham o mat trong vach tui). */
+  const size_t n    = guide_path_.size();
+  size_t       best = k0;
+  double       s    = (guide_path_[k0] - start_pt_).norm();
+  for (size_t i = k0 + 1; i < n; ++i) {
+    s += (guide_path_[i] - guide_path_[i - 1]).norm();
+    if (s > guide_dist_) break;
+    /* Diem khuat nhung o gan (<= guide_hidden_r_) van chon: A* cuc bo tim duoc duong that toi
+       no (vd. xuyen qua cua). Chi diem XA moi bat buoc nhin thay (tranh cat goc o I5). */
+    if ((guide_path_[i] - start_pt_).norm() > guide_hidden_r_ &&
+        !planner_manager_->segmentFree(start_pt_, guide_path_[i]))
+      break;
+    best = i;
+  }
+  if (best + 1 >= n) return end_pt_;   // nhin thay dich that: ve dich, van toc cuoi = end_vel_
+  if (best == k0) best = k0 + 1;
+  /* Van toc tai dich tam theo huong duong, giam theo khoang cach: dich tam gan (sau goc) thi
+     quy dao ngan, ep 1 m/s o cuoi se giat. */
+  const double dsub = (guide_path_[best] - start_pt_).norm();
+  target_vel = guide_vel_ * std::min(1.0, dsub / guide_dist_) *
+               (guide_path_[std::min(best + 1, n - 1)] - guide_path_[best - 1]).normalized();
+  return guide_path_[best];
+}
+
 bool KinoReplanFSM::callKinodynamicReplan() {
+  /* [CD1] Dan duong toan cuc: dich cua lan lap ke hoach cuc bo la diem tren duong toan cuc,
+     khong phai dich that. end_pt_ van la dich that (dung de xet toi dich). */
+  Eigen::Vector3d target_vel = end_vel_;
+  Eigen::Vector3d target     = global_guide_ ? guideTarget(target_vel) : end_pt_;
   bool plan_success =
-      planner_manager_->kinodynamicReplan(start_pt_, start_vel_, start_acc_, end_pt_, end_vel_);
+      planner_manager_->kinodynamicReplan(start_pt_, start_vel_, start_acc_, target, target_vel);
 
   if (plan_success) {
 

@@ -43,6 +43,11 @@
   <arg name="yaw_mode" default="0"/>
   <arg name="astar_max_time" default="-1.0"/>
   <arg name="replan_latency" default="-1.0"/>
+  <arg name="keep_memory" default="false"/>      <!-- [CD1] -->
+  <arg name="global_guide" default="false"/>     <!-- [CD1] -->
+  <arg name="guide_dist" default="6.0"/>         <!-- [CD1] -->
+  <arg name="guide_vel" default="1.0"/>          <!-- [CD1] -->
+  <arg name="guide_soft_w" default="1.0"/>       <!-- [CD1] -->
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -123,6 +128,11 @@
     <arg name="yaw_mode" value="$(arg yaw_mode)"/>
     <arg name="astar_max_time" value="$(arg astar_max_time)"/>
     <arg name="replan_latency" value="$(arg replan_latency)"/>
+    <arg name="keep_memory" value="$(arg keep_memory)"/>
+    <arg name="global_guide" value="$(arg global_guide)"/>
+    <arg name="guide_dist" value="$(arg guide_dist)"/>
+    <arg name="guide_vel" value="$(arg guide_vel)"/>
+    <arg name="guide_soft_w" value="$(arg guide_soft_w)"/>
 
     <arg name="takeoff_height"       value="$(arg takeoff_height)"/>
   </include>

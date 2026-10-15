@@ -109,6 +109,7 @@ struct MappingParameters {
   double virtual_floor_height_;   // [CD2] san ao, doi xung voi tran ao
   double dyn_sweep_T_;           // [CD2] P2: chan troi vet quet (s); < 0 = tat
   double dyn_sweep_inflate_;     // [CD2] P2: no them quanh vat can dong (m)
+  bool keep_memory_;             // [CD1] ban do co tri nho: khong xoa vat can tinh da thay
   bool show_esdf_time_, show_occ_time_;
 
   /* active mapping */
@@ -124,6 +125,7 @@ struct MappingData {
   std::vector<char> occupancy_buffer_neg;
   std::vector<char> occupancy_buffer_inflate_;
   std::vector<char> dyn_only_buffer_;   // [CD2] o bi chiem CHI boi vet quet vat can dong
+  std::vector<Eigen::Vector3i> dyn_marked_;   // [CD1] o vet quet da ve chu ky truoc (xoa khi giu tri nho)
   std::vector<double> distance_buffer_;
   std::vector<double> distance_buffer_neg_;
   std::vector<double> distance_buffer_all_;
@@ -218,6 +220,7 @@ public:
 
   void publishMap();
   void publishMapInflate(bool all_info = false);
+  void publishMemory();   // [CD1]
   void publishESDF();
   void publishUpdateRange();
 
@@ -299,6 +302,7 @@ private:
   };
   std::map<int, DynObjState> dyn_objs_;
   ros::Publisher map_pub_, esdf_pub_, map_inf_pub_, update_range_pub_;
+  ros::Publisher memory_pub_;   // [CD1] toan bo vat can tinh da nho (/sdf_map/memory)
   ros::Publisher unknown_pub_, depth_pub_;
   ros::Timer occ_timer_, esdf_timer_, vis_timer_;
 

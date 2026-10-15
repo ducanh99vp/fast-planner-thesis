@@ -129,7 +129,7 @@ int Astar::search(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt, bool dynamic
 
           /* not in close set */
           Eigen::Vector3i pro_id = posToIndex(pro_pos);
-          int pro_t_id = timeToIndex(pro_t);
+          int pro_t_id = dynamic ? timeToIndex(pro_t) : 0;   // [CD1] goc goi ca khi pro_t chua gan gia tri
 
           NodePtr pro_node =
               dynamic ? expanded_nodes_.find(pro_id, pro_t_id) : expanded_nodes_.find(pro_id);
@@ -144,14 +144,30 @@ int Astar::search(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt, bool dynamic
           // edt_environment_->evaluateCoarseEDT(pro_pos, cur_node->time + dt) :
           //                         edt_environment_->evaluateCoarseEDT(pro_pos,
           //                         -1.0);
-          double dist = edt_environment_->evaluateCoarseEDT(pro_pos, -1.0);
-          if (dist <= margin_) {
-            continue;
+          if (use_occ_) {
+            /* [CD1] ESDF chi duoc tinh trong vung cuc bo nen khong dung duoc cho duong toan
+               cuc; kiem thang tren luoi chiem dung (co tri nho). */
+            /* Dai do cao: cam bien cau 5 m chua thay phan tren cua tuong o xa, duong toan cuc
+               (coi chua thay = trong) se vuot qua dinh tuong (do 14/10: I3 bay len 2.4 m). */
+            if (pro_pos(2) < z_min_ || pro_pos(2) > z_max_) continue;
+            if (!occFree(pro_pos, clearance_)) continue;
+          } else {
+            double dist = edt_environment_->evaluateCoarseEDT(pro_pos, -1.0);
+            if (dist <= margin_) {
+              continue;
+            }
           }
 
           /* ---------- compute cost ---------- */
           double time_to_goal, tmp_g_score, tmp_f_score;
-          tmp_g_score = d_pos.squaredNorm() + cur_node->g_score;
+          // [CD1] goc cong BINH PHUONG buoc (lech don vi voi h Euclid) -> tim kiem gan nhu tham lam
+          /* [CD1] Buoc len/xuong dat gap z_weight_: trong dai do cao moi muc deu ngang gia nen
+             moi lan tim lai duong chon mot do cao khac, dich tam nhay len xuong -> giat. */
+          double step = use_occ_ ? Eigen::Vector3d(d_pos(0), d_pos(1), z_weight_ * d_pos(2)).norm()
+                                 : d_pos.squaredNorm();
+          if (use_occ_ && soft_weight_ > 0.0 && !occFree(pro_pos, soft_clearance_))
+            step *= 1.0 + soft_weight_;   // [CD1] uu tien di giua loi, van qua duoc cua hep
+          tmp_g_score = step + cur_node->g_score;
           tmp_f_score = tmp_g_score + lambda_heu_ * getEuclHeu(pro_pos, end_pt);
 
           if (pro_node == NULL) {
@@ -208,9 +224,30 @@ void Astar::setParam(ros::NodeHandle& nh) {
   nh.param("astar/lambda_heu", lambda_heu_, -1.0);
   nh.param("astar/margin", margin_, -1.0);
   nh.param("astar/allocate_num", allocate_num_, -1);
+  nh.param("astar/use_occ", use_occ_, false);     // [CD1]
+  nh.param("astar/clearance", clearance_, 0.2);   // [CD1]
+  nh.param("astar/soft_clearance", soft_clearance_, 0.5);   // [CD1]
+  nh.param("astar/soft_weight", soft_weight_, 0.0);         // [CD1] 0 = tat
+  nh.param("astar/z_min", z_min_, -1e5);   // [CD1]
+  nh.param("astar/z_max", z_max_, 1e5);    // [CD1]
+  nh.param("astar/z_weight", z_weight_, 1.0);   // [CD1]
   tie_breaker_ = 1.0 + 1.0 / 10000;
 
   cout << "margin:" << margin_ << endl;
+}
+
+/* [CD1] Diem p trong neu p va 10 diem quanh no (6 truc + 4 cheo ngang, cach r) deu khong bi
+   chiem. Ngoai ban do coi la bi chan (getInflateOccupancy tra -1). */
+bool Astar::occFree(const Eigen::Vector3d& p, double r) {
+  static const double k = 0.7071;
+  static const double off[11][3] = { { 0, 0, 0 },  { 1, 0, 0 },  { -1, 0, 0 }, { 0, 1, 0 },
+                                     { 0, -1, 0 }, { 0, 0, 1 },  { 0, 0, -1 }, { k, k, 0 },
+                                     { k, -k, 0 }, { -k, k, 0 }, { -k, -k, 0 } };
+  for (const auto& o : off) {
+    const Eigen::Vector3d q = p + r * Eigen::Vector3d(o[0], o[1], o[2]);
+    if (edt_environment_->sdf_map_->getInflateOccupancy(q) != 0) return false;
+  }
+  return true;
 }
 
 void Astar::retrievePath(NodePtr end_node) {
@@ -326,6 +363,7 @@ Eigen::Vector3i Astar::posToIndex(Eigen::Vector3d pt) {
 
 int Astar::timeToIndex(double time) {
   int idx = floor((time - time_origin_) * inv_time_resolution_);
+  return idx;   // [CD1] ma goc THIEU return: hanh vi khong xac dinh, build Release lam node treo
 }
 
 }  // namespace fast_planner

@@ -136,6 +136,12 @@ private:
   /* search */
   double lambda_heu_;
   double margin_;
+  bool use_occ_;        // [CD1] kiem va cham tren luoi chiem dung (co tri nho) thay vi ESDF cuc bo
+  double clearance_;    // [CD1] khoang ho toi o chiem dung khi use_occ_
+  double z_min_, z_max_;   // [CD1] dai do cao duoc phep cua duong toan cuc
+  double z_weight_;        // [CD1] he so chi phi buoc theo phuong dung (>= 1)
+  double soft_clearance_, soft_weight_;     // [CD1] o gan tuong hon soft_clearance_ thi buoc dat gap (1 + soft_weight_)
+  bool occFree(const Eigen::Vector3d& p, double r);   // [CD1]
   int allocate_num_;
   double tie_breaker_;
   /* map */
@@ -162,6 +168,7 @@ public:
   /* main API */
   void setParam(ros::NodeHandle& nh);
   void init();
+  bool pointFree(const Eigen::Vector3d& p) { return occFree(p, clearance_); }   // [CD1]
   void reset();
   int search(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt, bool dynamic = false,
              double time_start = -1.0);

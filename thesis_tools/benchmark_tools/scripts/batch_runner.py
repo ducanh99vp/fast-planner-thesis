@@ -131,6 +131,13 @@ CONFIGS = {
     # UAV gan dung yen. Truoc khi sua: P2 xoay than 560-600 do/luot (P0 124 do).
     "SW15HY1": ["dyn_sweep_T:=1.5", "dyn_check_horizon:=1.5", "yaw_mode:=1"],
     "SW15HY2": ["dyn_sweep_T:=1.5", "dyn_check_horizon:=1.5", "yaw_mode:=2"],
+    # === [CD1] Ban do co tri nho + dan duong toan cuc (14/10/2026) ===
+    # M3B: tai tao baseline M3 tren nhanh hien tai (tran ao tat nhu M3, khi do no chua co hieu luc).
+    "M3B": ["virtual_ceil:=-1.0"],
+    # TN: M3B + ban do co tri nho + dan duong toan cuc (A* hinh hoc tren ban do da nho, dai z
+    # 0.5-2.0 m, dich tam = diem xa nhat nhin thay duoc trong 6 m theo duong).
+    "TN": ["virtual_ceil:=-1.0", "keep_memory:=true", "global_guide:=true"],
+    "TN2": ["virtual_ceil:=-1.0", "keep_memory:=true", "global_guide:=true"],   # = TN, chi doi nhan: do bang ma 15/10 (lap lai truoc khi het quy dao + dich tam khuat gan); TN trong cd1_tn_20261014.csv la ma 14/10
 
 
 }

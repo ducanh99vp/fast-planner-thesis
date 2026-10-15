@@ -49,7 +49,9 @@ void addRoomShell(Cloud& c, double sx, double sy, double sz) {
   addSlab(c, -xh, xh,  yh,  yh, FLOOR_Z, sz);           // tuong y+
 }
 
-// ---------------- I1: phong don thua, 15x10x3, 8 cot ----------------
+void addBox(Cloud& c, double cx, double cy, double sx, double sy, double sz);   // dinh nghia o duoi
+
+// ---------------- I1: phong don thua, 15x10x3, 8 cot + 2 vat can chan duong bay ----------------
 void buildI1(Cloud& c, unsigned seed) {
   const double SX = 15.0, SY = 10.0, SZ = 3.0;
   addRoomShell(c, SX, SY, SZ);
@@ -76,6 +78,14 @@ void buildI1(Cloud& c, unsigned seed) {
     addPillar(c, x, y, r, FLOOR_Z, SZ);
     ++placed;
   }
+
+  /* [CD1 14/10/2026] Hai vat can CHAN THANG duong bay (-6, 0) -> (6, 0). 8 cot ngau nhien o tren
+     khong cot nao cat duong thang (gan nhat cach 0.48 m), nen I1 cu chua kiem tra ne vat can.
+     Dat SAU vong lap ngau nhien de 8 cot cu giu nguyen vi tri. Cao toi tran: UAV phai vong
+     ngang, khong bay vuot len tren. Cach xuat phat / dich > 1.5 m; khe hep nhat voi cot cu
+     (-2.9, -0.7) la 0.99 m. */
+  addPillar(c, -1.5, 0.0, 0.35, FLOOR_Z, SZ);   // cot tron r = 0.35 m
+  addBox(c, 2.5, 0.0, 0.6, 1.4, SZ);            // tu / vach 0.6 x 1.4 m
 }
 
 void buildI3(Cloud& c, unsigned /*seed*/) {

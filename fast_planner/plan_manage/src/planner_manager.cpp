@@ -102,6 +102,40 @@ void FastPlannerManager::publishTiming(double t_fe_ms, double t_be_ms, bool ok) 
   timing_pub_.publish(m);
 }
 
+bool FastPlannerManager::planGlobalPath(const Eigen::Vector3d& start, const Eigen::Vector3d& end,
+                                        vector<Eigen::Vector3d>& path) {   // [CD1]
+  t_global_ms_ = 0.0;
+  if (!geo_path_finder_) return false;
+  ros::Time t1 = ros::Time::now();
+  geo_path_finder_->reset();
+  int status   = geo_path_finder_->search(start, end, false, -1.0);
+  t_global_ms_ = (ros::Time::now() - t1).toSec() * 1000.0;
+  if (status != Astar::REACH_END) return false;
+  path = geo_path_finder_->getPath();
+  return path.size() >= 2;
+}
+
+/* [CD1] Duong toan cuc cu (tu diem thu from) con trong tren ban do da nho khong. */
+bool FastPlannerManager::globalPathFree(const vector<Eigen::Vector3d>& path, size_t from) {
+  if (!geo_path_finder_) return false;
+  ros::Time t1 = ros::Time::now();
+  bool free = true;
+  for (size_t i = from; i < path.size() && free; ++i) free = geo_path_finder_->pointFree(path[i]);
+  t_global_ms_ = (ros::Time::now() - t1).toSec() * 1000.0;
+  return free;
+}
+
+/* [CD1] Tam nhin: doan thang a-b khong cat o chiem dung nao (lay mau 0.05 m). KHONG dung
+   khoang ho: chi can biet b co bi tuong che khong; giu khoang cach la viec cua A* cuc bo va bo
+   toi uu. (Dung khoang ho 0.2 m thi o cua 0.9 m moi diem sau cua deu "khuat", dich tam chi con
+   cach 0.3 m -> j_rms 14, do 14/10.) */
+bool FastPlannerManager::segmentFree(const Eigen::Vector3d& a, const Eigen::Vector3d& b) {
+  const int n = std::max(1, (int)std::ceil((b - a).norm() / 0.05));
+  for (int i = 1; i <= n; ++i)
+    if (edt_environment_->sdf_map_->getInflateOccupancy(a + (b - a) * (double(i) / n)) == 1) return false;
+  return true;
+}
+
 void FastPlannerManager::setGlobalWaypoints(vector<Eigen::Vector3d>& waypoints) {
   plan_data_.global_waypoints_ = waypoints;
 }
@@ -195,7 +229,8 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
            << edt_environment_->sdf_map_->getInflateOccupancy(start_pt)
            << ", khoang cach toi vat can gan nhat = "
            << edt_environment_->sdf_map_->getDistance(start_pt) << " m" << endl;
-      publishTiming((ros::Time::now() - t1).toSec() * 1000.0, 0.0, false);
+      publishTiming((ros::Time::now() - t1).toSec() * 1000.0 + t_global_ms_, 0.0, false);   // [CD1] + A* toan cuc
+      t_global_ms_ = 0.0;
       return false;
     } else {
       cout << "[kino replan]: retry search success." << endl;
@@ -272,7 +307,8 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
   pp_.time_optimize_ = t_opt;
   pp_.time_adjust_   = t_adjust;
 
-  publishTiming(t_search * 1000.0, t_opt * 1000.0, true);
+  publishTiming(t_search * 1000.0 + t_global_ms_, t_opt * 1000.0, true);   // [CD1] + A* toan cuc
+  t_global_ms_ = 0.0;
 
   updateTrajInfo();
 

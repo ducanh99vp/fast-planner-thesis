@@ -85,6 +85,12 @@ private:
   double no_replan_thresh_, replan_thresh_;
   double takeoff_height_;  // [Luan van - M3] <= 0: tat pha cat canh
   double goal_z_;   // [CD2] do cao dich; goc ep cung 1.0
+  bool global_guide_;   // [CD1] dan duong toan cuc: lap ke hoach cuc bo toi diem tren duong toan cuc
+  double guide_dist_;   // [CD1] khoang cach (theo duong) tu xuat phat toi dich tam
+  double guide_vel_;    // [CD1] toc do tai dich tam, theo huong duong toan cuc (0 = dung lai)
+  vector<Eigen::Vector3d> guide_path_;   // [CD1] duong toan cuc dang theo
+  double guide_hidden_r_;   // [CD1] dich tam KHUAT van duoc chon neu cach diem xuat phat <= ban kinh nay
+  double guide_replan_t_;   // [CD1] lap lai khi quy dao con < guide_replan_t_ giay
   double replan_latency_;   // [CD2 Indoor] > 0: lap ke hoach tu trang thai sau ngan nay giay
   double waypoints_[50][3];
   int waypoint_num_;
@@ -109,6 +115,7 @@ private:
 
   /* helper functions */
   bool callKinodynamicReplan();        // front-end and back-end method
+  Eigen::Vector3d guideTarget(Eigen::Vector3d& target_vel);   // [CD1] dich tam tren duong toan cuc
   bool planTakeoffTraj();   // [Luan van - M3] quy dao cat canh thang dung, khong qua A*
   void publishLocalTraj();  // [Luan van - M3] gui local_data_ cho traj_server
   bool needTakeoff();                                        // [Luan van - M3]

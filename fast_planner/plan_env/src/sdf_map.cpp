@@ -83,6 +83,8 @@ void SDFMap::initMap(ros::NodeHandle& nh) {
      inflate < 0 = dung lai obstacles_inflation_ cua vat can tinh. */
   node_.param("sdf_map/dyn_sweep_T", mp_.dyn_sweep_T_, -1.0);
   node_.param("sdf_map/dyn_sweep_inflate", mp_.dyn_sweep_inflate_, -1.0);
+  /* [CD1] Ban do co tri nho. false = ban goc: moi chu ky xoa hop cuc bo roi chi chen diem dang thay. */
+  node_.param("sdf_map/keep_memory", mp_.keep_memory_, false);
 
   mp_.local_bound_inflate_ = max(mp_.resolution_, mp_.local_bound_inflate_);
   mp_.resolution_inv_ = 1 / mp_.resolution_;
@@ -170,6 +172,7 @@ void SDFMap::initMap(ros::NodeHandle& nh) {
 
   map_pub_ = node_.advertise<sensor_msgs::PointCloud2>("/sdf_map/occupancy", 10);
   map_inf_pub_ = node_.advertise<sensor_msgs::PointCloud2>("/sdf_map/occupancy_inflate", 10);
+  memory_pub_  = node_.advertise<sensor_msgs::PointCloud2>("/sdf_map/memory", 1);   // [CD1]
   esdf_pub_ = node_.advertise<sensor_msgs::PointCloud2>("/sdf_map/esdf", 10);
   update_range_pub_ = node_.advertise<visualization_msgs::Marker>("/sdf_map/update_range", 10);
 
@@ -863,7 +866,10 @@ void SDFMap::markDynSweep() {
       for (int iz = za; iz <= zb; ++iz) {
         const int a = toAddress(ix, iy, iz);
         // [CD2] o nay TRONG truoc khi ve vet quet => chi do vat can dong
-        if (md_.occupancy_buffer_inflate_[a] == 0) md_.dyn_only_buffer_[a] = 1;
+        if (md_.occupancy_buffer_inflate_[a] == 0) {
+          md_.dyn_only_buffer_[a] = 1;
+          if (mp_.keep_memory_) md_.dyn_marked_.push_back(Eigen::Vector3i(ix, iy, iz));   // [CD1]
+        }
         md_.occupancy_buffer_inflate_[a] = 1;
       }
       md_.local_bound_min_(0) = std::min(md_.local_bound_min_(0), ix);
@@ -911,6 +917,10 @@ void SDFMap::applyVirtualBounds() {
 void SDFMap::visCallback(const ros::TimerEvent& /*event*/) {
   publishMap();
   publishMapInflate(false);
+  if (mp_.keep_memory_) {   // [CD1] ve toan bo tri nho, 1 lan/giay (vis timer 20 Hz)
+    static int k = 0;
+    if (++k >= 20) { k = 0; publishMemory(); }
+  }
   // publishUpdateRange();
   // publishESDF();
 
@@ -1019,8 +1029,24 @@ void SDFMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr& img) {
 
   if (isnan(md_.camera_pos_(0)) || isnan(md_.camera_pos_(1)) || isnan(md_.camera_pos_(2))) return;
 
-  this->resetBuffer(md_.camera_pos_ - mp_.local_update_range_,
-                    md_.camera_pos_ + mp_.local_update_range_);
+  /* [CD1] Giu tri nho: KHONG xoa vat can tinh da thay. Cam bien mo phong chi thay vat can
+     tinh (vat can dong den qua /dynamic/obj), nen o da chiem khong bao gio cu. Chi xoa dung
+     cac o vet quet vat can dong da ve o chu ky truoc, va noi local_bound_ de ESDF tinh lai. */
+  Eigen::Vector3i clr_min(INT_MAX, INT_MAX, INT_MAX), clr_max(INT_MIN, INT_MIN, INT_MIN);
+  if (mp_.keep_memory_) {
+    for (const Eigen::Vector3i& id : md_.dyn_marked_) {
+      const int a = toAddress(id);
+      if (!md_.dyn_only_buffer_[a]) continue;
+      md_.occupancy_buffer_inflate_[a] = 0;
+      md_.dyn_only_buffer_[a]          = 0;
+      clr_min = clr_min.cwiseMin(id);
+      clr_max = clr_max.cwiseMax(id);
+    }
+    md_.dyn_marked_.clear();
+  } else {
+    this->resetBuffer(md_.camera_pos_ - mp_.local_update_range_,
+                      md_.camera_pos_ + mp_.local_update_range_);
+  }
 
   pcl::PointXYZ pt;
   Eigen::Vector3d p3d, p3d_inf;
@@ -1092,6 +1118,10 @@ void SDFMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr& img) {
 
   boundIndex(md_.local_bound_min_);
   boundIndex(md_.local_bound_max_);
+  if (clr_min(0) <= clr_max(0)) {   // [CD1] co o vet quet vua xoa
+    md_.local_bound_min_ = md_.local_bound_min_.cwiseMin(clr_min);
+    md_.local_bound_max_ = md_.local_bound_max_.cwiseMax(clr_max);
+  }
 
   applyVirtualBounds();   // [CD2] nhanh cloudCallback cung phai dat san/tran
   md_.esdf_need_update_ = true;
@@ -1172,6 +1202,29 @@ void SDFMap::publishMap() {
 
   pcl::toROSMsg(cloud, cloud_msg);
   map_pub_.publish(cloud_msg);
+}
+
+/* [CD1] Chi de quan sat: moi o vat can TINH dang co trong ban do (ca vung UAV da roi xa).
+   /sdf_map/occupancy_inflate chi ve vung cuc bo nen khong thay duoc tri nho. */
+void SDFMap::publishMemory() {
+  pcl::PointCloud<pcl::PointXYZ> cloud;
+  for (int x = 0; x < mp_.map_voxel_num_(0); ++x)
+    for (int y = 0; y < mp_.map_voxel_num_(1); ++y)
+      for (int z = 0; z < mp_.map_voxel_num_(2); ++z) {
+        const int a = toAddress(x, y, z);
+        if (md_.occupancy_buffer_inflate_[a] == 0 || md_.dyn_only_buffer_[a]) continue;
+        Eigen::Vector3d pos;
+        indexToPos(Eigen::Vector3i(x, y, z), pos);
+        if (pos(2) > mp_.visualization_truncate_height_ || pos(2) < 0.05) continue;   // bo tran, san
+        cloud.push_back(pcl::PointXYZ(pos(0), pos(1), pos(2)));
+      }
+  cloud.width           = cloud.points.size();
+  cloud.height          = 1;
+  cloud.is_dense        = true;
+  cloud.header.frame_id = mp_.frame_id_;
+  sensor_msgs::PointCloud2 msg;
+  pcl::toROSMsg(cloud, msg);
+  memory_pub_.publish(msg);
 }
 
 void SDFMap::publishMapInflate(bool all_info) {
