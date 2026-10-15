@@ -134,6 +134,9 @@ class KinodynamicAstar {
      duong DI RA. Chi bat khi diem xuat phat thuc su bi chiem. */
   double start_escape_;
   bool   escape_active_;
+  /* [CD2 Indoor] Gioi han thoi gian moi lan tim (s); <= 0 = khong gioi han (ban goc).
+     Trong nha, khi vet quet chan ngang hanh lang, A* vet can khong gian toi 0.5-0.8 s. */
+  double max_search_time_;
   Eigen::Vector3d search_start_;
   bool occupiedForSearch(const Eigen::Vector3d& pos);
   double tie_breaker_;

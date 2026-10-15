@@ -85,6 +85,7 @@ private:
   double no_replan_thresh_, replan_thresh_;
   double takeoff_height_;  // [Luan van - M3] <= 0: tat pha cat canh
   double goal_z_;   // [CD2] do cao dich; goc ep cung 1.0
+  double replan_latency_;   // [CD2 Indoor] > 0: lap ke hoach tu trang thai sau ngan nay giay
   double waypoints_[50][3];
   int waypoint_num_;
 

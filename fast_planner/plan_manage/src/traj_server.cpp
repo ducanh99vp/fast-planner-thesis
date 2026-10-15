@@ -55,6 +55,17 @@ double time_forward_;
 
 vector<Eigen::Vector3d> traj_cmd_, traj_real_;
 
+/* [CD2 Indoor] replan_latency_ > 0 (cung gia tri voi fsm/replan_latency): FSM lap ke hoach tu
+   trang thai sau replan_latency_ giay va gan moc thoi gian dung luc do. traj_server phai
+   (1) KHONG cat quy dao cu sau 10 ms ma giu no toi luc ban giao, (2) GIU quy dao moi cho toi
+   moc thoi gian cua no roi moi chuyen sang. <= 0 = ban goc. */
+double replan_latency_ = -1.0;
+bool pending_ = false;
+vector<NonUniformBspline> pending_traj_;
+ros::Time pending_start_;
+int pending_id_;
+double pending_duration_;
+
 void displayTrajWithColor(vector<Eigen::Vector3d> path, double resolution, Eigen::Vector4d color,
                           int id) {
   visualization_msgs::Marker mk;
@@ -153,24 +164,36 @@ void bsplineCallback(plan_manage::BsplineConstPtr msg) {
 
   NonUniformBspline yaw_traj(yaw_pts, msg->order, msg->yaw_dt);
 
+  vector<NonUniformBspline> tr;
+  tr.push_back(pos_traj);
+  tr.push_back(tr[0].getDerivative());
+  tr.push_back(tr[1].getDerivative());
+  tr.push_back(yaw_traj);
+  tr.push_back(yaw_traj.getDerivative());
+
+  /* [CD2 Indoor] quy dao moi bat dau o tuong lai -> giu lai, van bay quy dao cu */
+  if (replan_latency_ > 0.0 && receive_traj_ && msg->start_time > ros::Time::now()) {
+    pending_traj_     = tr;
+    pending_start_    = msg->start_time;
+    pending_id_       = msg->traj_id;
+    pending_duration_ = tr[0].getTimeSum();
+    pending_          = true;
+    return;
+  }
+
   start_time_ = msg->start_time;
   traj_id_ = msg->traj_id;
-
-  traj_.clear();
-  traj_.push_back(pos_traj);
-  traj_.push_back(traj_[0].getDerivative());
-  traj_.push_back(traj_[1].getDerivative());
-  traj_.push_back(yaw_traj);
-  traj_.push_back(yaw_traj.getDerivative());
-
+  traj_ = tr;
   traj_duration_ = traj_[0].getTimeSum();
+  pending_ = false;
 
   receive_traj_ = true;
 }
 
 void replanCallback(std_msgs::Empty msg) {
   /* reset duration */
-  const double time_out = 0.01;
+  /* [CD2 Indoor] giu quy dao cu toi luc ban giao (+0.05 s du phong), khong cat sau 10 ms */
+  const double time_out = (replan_latency_ > 0.0) ? replan_latency_ + 0.05 : 0.01;
   ros::Time time_now = ros::Time::now();
   double t_stop = (time_now - start_time_).toSec() + time_out;
   traj_duration_ = min(t_stop, traj_duration_);
@@ -205,6 +228,14 @@ void cmdCallback(const ros::TimerEvent& e) {
   if (!receive_traj_) return;
 
   ros::Time time_now = ros::Time::now();
+  /* [CD2 Indoor] toi moc thoi gian cua quy dao dang cho -> chuyen sang */
+  if (pending_ && time_now >= pending_start_) {
+    traj_ = pending_traj_;
+    start_time_ = pending_start_;
+    traj_id_ = pending_id_;
+    traj_duration_ = pending_duration_;
+    pending_ = false;
+  }
   double t_cur = (time_now - start_time_).toSec();
 
   Eigen::Vector3d pos, vel, acc, pos_f;
@@ -306,6 +337,7 @@ int main(int argc, char** argv) {
   cmd.kv[2] = vel_gain[2];
 
   nh.param("traj_server/time_forward", time_forward_, -1.0);
+  nh.param("traj_server/replan_latency", replan_latency_, -1.0);   // [CD2 Indoor]
   last_yaw_ = 0.0;
 
   ros::Duration(1.0).sleep();

@@ -35,6 +35,8 @@
 #include <random>
 #include <sensor_msgs/PointCloud2.h>
 #include <string>
+#include <sstream>
+#include <cstdio>
 
 #include <plan_env/linear_obj_model.hpp>
 #include <unordered_set>
@@ -60,6 +62,17 @@ uniform_real_distribution<double> rand_px, rand_py;
 bool   _bounce_static;          // bat/tat
 double _map_res;                // do phan giai o luoi khi bam ban do
 double _unstick;                // giay; 0 = tat. Go ket o goc tuong
+/* [CD2 Indoor] Ban do trong nha co SAN (z = 0) va TRAN (z = 3). hitStatic quet ca chieu
+   cao vat can nen day vat can luon cham diem san -> do thu: 0/200 vi tri trong phong I1
+   duoc coi la trong. z_margin bo qua lop sat day/dinh. 0 = nhu cu (ban do ngoai troi). */
+double _z_margin;
+/* [CD2 Indoor] Vung sinh vat can: "x0,x1,y0,y1;x0,x1,y0,y1;..." (rong = ca hop +-xy).
+   Can cho I3: phan bit kin cua phong chu L khong duoc sinh vat can vao. */
+vector<Eigen::Vector4d> spawn_boxes;
+/* [CD2 Indoor] Truc chuyen dong rieng cua tung vung: "x0,x1,y0,y1,truc" (0 = x, 1 = y);
+   thieu truc = -1 = theo quy tac xen ke chung. Trong hanh lang vat can di DOC hanh lang:
+   neu di ngang thi no bat qua bat lai giua hai vach nhu can gat nuoc (khong thuc te). */
+vector<int> spawn_axis;
 unordered_set<long> static_vox; // tap o luoi bi chiem boi vat can tinh
 bool   map_ready  = false;
 bool   objs_ready = false;   // [CD2] chua dat xong vat can thi chua duoc cap nhat
@@ -86,7 +99,7 @@ bool hitStatic(const Eigen::Vector3d& pos, const Eigen::Vector3d& scale) {
   const double hx = 0.5 * scale(0), hy = 0.5 * scale(1), hz = 0.5 * scale(2);
   for (double dx = -hx; dx <= hx + 1e-9; dx += _map_res)
     for (double dy = -hy; dy <= hy + 1e-9; dy += _map_res)
-      for (double dz = -hz; dz <= hz + 1e-9; dz += _map_res)
+      for (double dz = -hz + _z_margin; dz <= hz - _z_margin + 1e-9; dz += _map_res)
         if (static_vox.count(voxKey(pos(0) + dx, pos(1) + dy, pos(2) + dz))) return true;
   return false;
 }
@@ -163,6 +176,22 @@ int main(int argc, char** argv) {
   node.param("obj_generator/bounce_static", _bounce_static, true);
   node.param("obj_generator/map_res",       _map_res,       0.1);
   node.param("obj_generator/unstick",       _unstick,       2.5);
+  node.param("obj_generator/z_margin",      _z_margin,      0.0);   // [CD2 Indoor]
+  {
+    std::string sb;
+    node.param("obj_generator/spawn_boxes", sb, std::string(""));  // [CD2 Indoor]
+    std::stringstream ss(sb);
+    std::string item;
+    while (std::getline(ss, item, ';')) {
+      double a, b, c, d;
+      int ax = -1;
+      if (sscanf(item.c_str(), "%lf,%lf,%lf,%lf,%d", &a, &b, &c, &d, &ax) >= 4) {
+        spawn_boxes.push_back(Eigen::Vector4d(a, b, c, d));
+        spawn_axis.push_back(ax);
+      }
+    }
+    if (!spawn_boxes.empty()) ROS_INFO("[dynamic]: %lu vung sinh vat can", (unsigned long)spawn_boxes.size());
+  }
   node.param("obj_generator/start_on_goal", _start_on_goal, false);
   /* [CD2] Gieo hat. Ban goc dung random_device nen MOI luot chay dat vat can
      o cho khac nhau -> khong the so cap hai phuong an tren cung kich ban.
@@ -238,17 +267,41 @@ int main(int argc, char** argv) {
        vat can tinh — boc them 0.3 m de khong dat sat mat cot. */
     Eigen::Vector3d pos;
     Eigen::Vector3d probe = scale + Eigen::Vector3d(0.6, 0.6, 0.0);
+    int box_axis = -1;   // [CD2 Indoor] truc cua vung duoc chon
     for (int tryk = 0; tryk < 200; ++tryk) {
-      pos = Eigen::Vector3d(rand_px(eng), rand_py(eng), 0.5 * scale(2));
+      if (spawn_boxes.empty()) {
+        pos = Eigen::Vector3d(rand_px(eng), rand_py(eng), 0.5 * scale(2));
+      } else {
+        /* [CD2 Indoor] chon vung theo dien tich roi rut deu trong vung */
+        double tong = 0.0;
+        for (const auto& bx : spawn_boxes) tong += (bx(1) - bx(0)) * (bx(3) - bx(2));
+        double u = uniform_real_distribution<double>(0.0, tong)(eng);
+        Eigen::Vector4d bx = spawn_boxes.back();
+        box_axis = spawn_axis.back();
+        for (size_t q = 0; q < spawn_boxes.size(); ++q) {
+          const Eigen::Vector4d& b = spawn_boxes[q];
+          const double s = (b(1) - b(0)) * (b(3) - b(2));
+          if (u <= s) { bx = b; box_axis = spawn_axis[q]; break; }
+          u -= s;
+        }
+        pos = Eigen::Vector3d(uniform_real_distribution<double>(bx(0), bx(1))(eng),
+                              uniform_real_distribution<double>(bx(2), bx(3))(eng), 0.5 * scale(2));
+      }
       if (!hitStatic(pos, probe)) break;
       if (tryk == 199)
         ROS_WARN("[dynamic]: vat can %d khong tim duoc cho dat trong, dat tam", i);
     }
 
+    /* [CD2 Indoor] vung co truc rieng thi ghi de quy tac xen ke */
+    if (box_axis == 0 || box_axis == 1) {
+      axis_of[i] = box_axis;
+    }
+    const int ax_i = axis_of[i];
+
     /* van toc nam tron tren mot truc, dau ngau nhien */
     const double sgn = (rand_vel(eng) >= 0.0) ? 1.0 : -1.0;
-    Eigen::Vector3d vel = (ax == 0) ? Eigen::Vector3d(sgn * _vel, 0.0, 0.0)
-                                    : Eigen::Vector3d(0.0, sgn * _vel, 0.0);
+    Eigen::Vector3d vel = (ax_i == 0) ? Eigen::Vector3d(sgn * _vel, 0.0, 0.0)
+                                      : Eigen::Vector3d(0.0, sgn * _vel, 0.0);
 
     /* mau: hop do, tru xanh — de phan biet tren RViz */
     Eigen::Vector3d color = (shp == 0) ? Eigen::Vector3d(0.85, 0.25, 0.20)

@@ -39,6 +39,7 @@ MAPS_DIR = os.path.expanduser(
 MAPS = {
     "I1": dict(pcd="I1", size=(16.0, 11.0, 4.5), start=(-6.0, 0.0), goals=[(6.0, 0.0)]),
     "I3": dict(pcd="I3", size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),
+    "I3G": dict(pcd="I3", size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),  # [CD2] can gat nuoc
     # I4: mot ban do, ba tuyen bay qua ba o cua rong khac nhau.
     #   R1 qua cua A 1.4 m, R2 qua cua C 1.2 m, R3 qua cua D 0.9 m (hep nhat)
     "I4-R1": dict(pcd="I4", size=(26.0, 16.0, 4.5), start=(-10.0, -5.0), goals=[(10.0, -5.0)]),
@@ -59,6 +60,22 @@ MAPS = {
                        # cat canh 0.5 m (nguoi dung chot 12/10/2026); giua chung UAV bay TU DO
                        # trong [san ao, tran ao 2.5]. FSM goc ep z dich = 1.0 -> goal_z
                        "takeoff_height:=0.5", "goal_z:=0.5"])
+}
+
+# [CD2 Indoor] Vat can dong trong nha (chi dung khi --dyn != 0; --dyn -1 = so luong mac dinh
+# duoi day). Vung sinh "x0,x1,y0,y1;..." tranh 1.5 m quanh xuat phat / dich va tranh
+# phan bi bit kin (I3). xy = bien phan xa (nua kich thuoc phong). z_margin 0.15: bo qua
+# lop sat san / tran khi xet va cham tinh (neu khong, vat can luon "cham" san).
+DYN_INDOOR = {
+    "I1":    dict(num=4, xy=(7.5, 5.0),  spawn="-4.5,4.5,-4.5,4.5"),
+    # I3: vat can di DOC hanh lang (nhanh ngang theo x, nhanh doc theo y). Di ngang hanh lang
+    # thi bat qua lai giua hai vach ~2.5 s/lan nhu can gat nuoc — giu lai lam kich ban kho rieng I3G.
+    "I3":    dict(num=4, xy=(10.0, 10.0), spawn="-6.5,6.5,-9.6,-7.4,0;7.4,9.6,-6.5,6.5,1"),
+    "I3G":   dict(num=4, xy=(10.0, 10.0), spawn="-6.5,6.5,-9.6,-7.4;7.4,9.6,-6.5,6.5"),
+    "I4-R1": dict(num=6, xy=(12.5, 7.5), spawn="-8,-1,-7,-1;1,8,-7,-1;-8,-1,1,7;1,8,1,7"),
+    "I4-R2": dict(num=6, xy=(12.5, 7.5), spawn="-8,-1,-7,-1;1,8,-7,-1;-8,-1,1,7;1,8,1,7"),
+    "I4-R3": dict(num=6, xy=(12.5, 7.5), spawn="-8,-1,-7,-1;1,8,-7,-1;-8,-1,1,7;1,8,1,7"),
+    "I5":    dict(num=4, xy=(10.0, 7.5), spawn="-6,1,4.8,7;-6,1,-7,-4.8;3,6.5,-7,7"),
 }
 
 # Tham so bay chung cho moi ban do
@@ -98,6 +115,15 @@ CONFIGS = {
     # === P2 HOAN CHINH (chot 13/10/2026) === SW15I2 + bong bong thoat 0.6 m. Chan doan 13/10: ca 5 va cham dong cua SW15I2 deu la
     # UAV DUNG YEN sau ~2 s lap ke hoach that bai lien tuc (128-200 lan), vat can khong doi huong.
     "SW15I2E": ["dyn_sweep_T:=1.5", "inflation:=0.2", "dyn_sweep_inflate:=0.099", "start_escape:=0.6"],
+    # P2 hoan chinh + chong giat khi lap ke hoach cham (chay thu Indoor 13/10: A* toi 0.8 s, lenh
+    # nhay 1.2 m, nghieng 75-154 do). A: A* bo cuoc sau 0.08 s. B: lap ke hoach tu trang thai
+    # sau 0.2 s, gan moc thoi gian dung luc ban giao; traj_server giu quy dao cu toi luc do.
+    "SW15I2EAB": ["dyn_sweep_T:=1.5", "inflation:=0.2", "dyn_sweep_inflate:=0.099", "start_escape:=0.6",
+                  "astar_max_time:=0.08", "replan_latency:=0.2"],
+    # === P2HC: P2 hoan chinh cho Indoor === SW15I2EAB + sua loi quan goc huong mui (yaw_mode 1;
+    # nguoi dung thay UAV "lieng vong" o I3 khi chua bat).
+    "P2HC": ["dyn_sweep_T:=1.5", "inflation:=0.2", "dyn_sweep_inflate:=0.099", "start_escape:=0.6",
+             "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=1"],
     # SW15 + huong B: phep kiem va cham 20 Hz BO QUA diem qua 1.5 s toi neu diem do
     # CHI cham vet quet (khong co vat can that trong 0.15 m) -> bot lap lai [SAFETY]
     "SW15H": ["dyn_sweep_T:=1.5", "dyn_check_horizon:=1.5"],
@@ -197,7 +223,7 @@ def main():
     # [CD2] vat can dong: so luong; moi luot mot hat giong = so luot + 1 nen
     # hai phuong an chay cung --trials se gap DUNG cung mot kich ban
     ap.add_argument("--dyn", type=int, default=0,
-                    help="so vat can dong (0 = tat)")
+                    help="so vat can dong (0 = tat; -1 = so mac dinh theo ban do trong nha)")
     ap.add_argument("--seed0", type=int, default=1,
                     help="hat giong cua luot dau (luot t dung hat seed0 + t); 41 = bo hat 41-80")
     ap.add_argument("--extra", nargs="*", default=[],
@@ -244,9 +270,14 @@ def main():
                 g = goals[t % len(goals)]
                 print("[%d/%d] %s | %s | lượt %d" % (done, total, m, c, t))
                 extra = list(a.extra)
-                if a.dyn > 0:   # [CD2] dat truoc --extra de van ghi de duoc
-                    extra = ["dyn_obs:=1", "dyn_num:=%d" % a.dyn,
+                if a.dyn != 0:   # [CD2] dat truoc --extra de van ghi de duoc
+                    di = DYN_INDOOR.get(m)
+                    n = a.dyn if a.dyn > 0 else (di["num"] if di else 8)
+                    extra = ["dyn_obs:=1", "dyn_num:=%d" % n,
                              "dyn_seed:=%d" % (t + a.seed0)] + extra
+                    if di:   # [CD2 Indoor]
+                        extra = ["dyn_xy_x:=%.1f" % di["xy"][0], "dyn_xy_y:=%.1f" % di["xy"][1],
+                                 "dyn_z_margin:=0.15", "dyn_spawn:=%s" % di["spawn"]] + extra
                 ok = run_one(m, c, t, g, a.out, a.timeout, extra)
                 if not ok:
                     failed += 1

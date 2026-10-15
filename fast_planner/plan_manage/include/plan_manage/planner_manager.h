@@ -65,6 +65,9 @@ public:
 
   PlanParameters pp_;
   LocalTrajData local_data_;
+  /* [CD2 Indoor] Neu khac 0: moc thoi gian (t = 0) cua quy dao sap lap. FSM dat bang thoi
+     diem UAV se o trang thai xuat phat, de quy dao moi noi tiep quy dao cu dung luc. */
+  ros::Time desired_start_time_;
   GlobalTrajData global_data_;
   MidPlanData plan_data_;
   EDTEnvironment::Ptr edt_environment_;

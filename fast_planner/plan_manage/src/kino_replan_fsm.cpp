@@ -40,6 +40,7 @@ void KinoReplanFSM::init(ros::NodeHandle& nh) {
   nh.param("fsm/thresh_no_replan", no_replan_thresh_, -1.0);
   nh.param("fsm/takeoff_height", takeoff_height_, -1.0);  // [Luan van - M3]
   nh.param("fsm/goal_z", goal_z_, 1.0);   // [CD2] goc HKUST ep cung z dich = 1.0
+  nh.param("fsm/replan_latency", replan_latency_, -1.0);   // [CD2 Indoor] <= 0 = ban goc
   takeoff_planned_ = false;
 
   nh.param("fsm/waypoint_num", waypoint_num_, -1);
@@ -208,6 +209,17 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
       ros::Time      time_now = ros::Time::now();
       double         t_cur    = (time_now - info->start_time_).toSec();
 
+      /* [CD2 Indoor] Lap ke hoach tu trang thai UAV SE CO sau replan_latency_ giay (UAV van
+         bay quy dao cu trong luc cho), va gan moc thoi gian dung thoi diem do. Quy dao moi
+         vi vay noi tiep quy dao cu, du lap ke hoach mat bao lau trong pham vi do. */
+      if (replan_latency_ > 0.0) {
+        /* Ban giao luc (bay gio + replan_latency_), KHONG phai (dau quy dao + latency): neu
+           quy dao hien tai con dang CHO (lap lai lien tiep, t_cur < 0) thi cong don lam moc
+           ban giao troi xa dan va bi ho voi quy dao cu da cat -> lenh v = 0 -> giat (do 13/10). */
+        t_cur = min(max(t_cur + replan_latency_, 0.0), info->duration_);
+        planner_manager_->desired_start_time_ = info->start_time_ + ros::Duration(t_cur);
+      }
+
       start_pt_  = info->position_traj_.evaluateDeBoorT(t_cur);
       start_vel_ = info->velocity_traj_.evaluateDeBoorT(t_cur);
       start_acc_ = info->acceleration_traj_.evaluateDeBoorT(t_cur);
@@ -220,6 +232,7 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
       replan_pub_.publish(replan_msg);
 
       bool success = callKinodynamicReplan();
+      planner_manager_->desired_start_time_ = ros::Time(0);   // [CD2 Indoor] khong de sot sang lan sau
       if (success) {
         changeFSMExecState(EXEC_TRAJ, "FSM");
       } else {

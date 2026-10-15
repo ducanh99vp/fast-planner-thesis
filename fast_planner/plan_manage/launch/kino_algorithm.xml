@@ -39,6 +39,8 @@
   <!-- [CD2] huong B: chan troi (s) ma ngoai do, cham CHI vet quet khong bat lap lai. < 0 = tat -->
   <arg name="dyn_check_horizon" default="-1.0"/>
   <arg name="yaw_mode" default="0"/>
+  <arg name="astar_max_time" default="-1.0"/>
+  <arg name="replan_latency" default="-1.0"/>
 
   <!-- [Luan van - M3] pha cat canh (<= 0: tat) -->
   <arg name="takeoff_height"       default="-1.0"/>
@@ -136,6 +138,8 @@
     <param name="manager/dynamic_environment" value="0" type="int"/>
     <param name="manager/dyn_check_horizon" value="$(arg dyn_check_horizon)" type="double"/>
     <param name="manager/yaw_mode" value="$(arg yaw_mode)" type="int"/>
+    <param name="search/max_search_time" value="$(arg astar_max_time)" type="double"/>
+    <param name="fsm/replan_latency" value="$(arg replan_latency)" type="double"/>
     <param name="manager/local_segment_length" value="6.0" type="double"/>
     <param name="manager/clearance_threshold" value="0.2" type="double"/>
     <param name="manager/control_points_distance" value="$(arg ctrl_pt_dist)" type="double"/>

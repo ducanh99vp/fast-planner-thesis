@@ -96,9 +96,17 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
   PathNodePtr terminate_node = NULL;
   bool init_search = init;
   const int tolerance = ceil(1 / resolution_);
+  const ros::Time t_search_begin = ros::Time::now();   // [CD2 Indoor]
+  int n_iter = 0;
 
   while (!open_set_.empty())
   {
+    /* [CD2 Indoor] qua han thi bo cuoc: FSM se lap lai tu trang thai THAT cua UAV */
+    if (max_search_time_ > 0.0 && (++n_iter & 63) == 0 &&
+        (ros::Time::now() - t_search_begin).toSec() > max_search_time_) {
+      cout << "[CD2] A* qua han " << max_search_time_ * 1000.0 << " ms, bo cuoc" << endl;
+      return NO_PATH;
+    }
     cur_node = open_set_.top();
 
     // Terminate?
@@ -353,6 +361,7 @@ void KinodynamicAstar::setParam(ros::NodeHandle& nh)
   nh.param("search/allocate_num", allocate_num_, -1);
   nh.param("search/check_num", check_num_, -1);
   nh.param("search/start_escape", start_escape_, 0.0);   // [CD2] 0 = tat
+  nh.param("search/max_search_time", max_search_time_, -1.0);   // [CD2 Indoor] <= 0 = tat
   escape_active_ = false;
   nh.param("search/optimistic", optimistic_, true);
   tie_breaker_ = 1.0 + 1.0 / 10000;

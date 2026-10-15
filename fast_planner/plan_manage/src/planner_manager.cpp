@@ -162,7 +162,10 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
 
   ros::Time t1, t2;
 
-  local_data_.start_time_ = ros::Time::now();
+  /* [CD2 Indoor] Ban goc gan moc = luc BAT DAU lap ke hoach. Neu lap ke hoach mat 0.8 s,
+     traj_server danh gia quy dao moi o t = 0.8 s -> lenh vi tri nhay ~1.2 m -> nghieng 75 do. */
+  local_data_.start_time_ = desired_start_time_.isZero() ? ros::Time::now() : desired_start_time_;
+  desired_start_time_     = ros::Time(0);
   double t_search = 0.0, t_opt = 0.0, t_adjust = 0.0;
 
   Eigen::Vector3d init_pos = start_pt;

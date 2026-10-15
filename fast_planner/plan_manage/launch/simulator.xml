@@ -29,6 +29,8 @@
   <arg name="dyn_box_h"    default="3.0"/>
   <arg name="dyn_bounce_static" default="true"/>
   <arg name="dyn_unstick"       default="2.5"/>
+  <arg name="dyn_z_margin"      default="0.0"/>
+  <arg name="dyn_spawn"         default=""/>
   <arg name="dyn_seed"          default="-1"/>
   <arg name="dyn_start_on_goal" default="true"/>
   <!-- [CD2] chieu cao THAP NHAT cua cot tinh. Goc HKUST = 0.0: moi cot nho cao
@@ -152,6 +154,8 @@
     <param name="obj_generator/bounce_static" value="$(arg dyn_bounce_static)" type="bool"/>
     <param name="obj_generator/map_res"       value="0.1"/>  <!-- = map/resolution -->
     <param name="obj_generator/unstick"       value="$(arg dyn_unstick)"/>
+    <param name="obj_generator/z_margin"      value="$(arg dyn_z_margin)" type="double"/>
+    <param name="obj_generator/spawn_boxes"   value="$(arg dyn_spawn)" type="str"/>
     <param name="obj_generator/seed"          value="$(arg dyn_seed)" type="int"/>
     <param name="obj_generator/start_on_goal" value="$(arg dyn_start_on_goal)" type="bool"/>
     <param name="obj_generator/yaw_dot"   value="0.0"/>
