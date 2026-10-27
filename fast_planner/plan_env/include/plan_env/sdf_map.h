@@ -109,6 +109,9 @@ struct MappingParameters {
   double virtual_floor_height_;   // [CD2] san ao, doi xung voi tran ao
   double dyn_sweep_T_;           // [CD2] P2: chan troi vet quet (s); < 0 = tat
   double dyn_sweep_inflate_;     // [CD2] P2: no them quanh vat can dong (m)
+  bool dyn_reflect_;             // [CD2 25/10] du doan biet tuong: duong du doan cham vat can tinh thi phan xa
+  double dyn_pred_T_;            // [CD2 P3] chan troi bo dem du doan theo thoi gian (s); <= 0 = tat
+  bool dyn_pred_pair_;           // [CD2 P3 26/10] du doan hai vat can dong dung nhau -> ca hai dao chieu
   bool keep_memory_;             // [CD1] ban do co tri nho: khong xoa vat can tinh da thay
   bool show_esdf_time_, show_occ_time_;
 
@@ -197,6 +200,15 @@ public:
   inline int getInflateOccupancy(Eigen::Vector3d pos);
   inline int getDynOnly(const Eigen::Vector3d& pos);   // [CD2] 1 = chi do vet quet
   bool nearRealOccupied(const Eigen::Vector3d& pos, double r);   // [CD2] co o vat can THAT trong ban kinh r?
+  /* [CD2 P3] Du doan vat can dong THEO THOI GIAN, dung chung cho A*, bo toi uu va phep kiem 20 Hz.
+     Bo dem tinh moi chu ky ban do (van toc khong doi + phan xa o tuong neu dyn_reflect_), truy van
+     chi noi suy. t_abs: thoi gian tuyet doi (ros::Time::toSec). */
+  int    dynPredNum() const { return (int)dyn_pred_.size(); }
+  bool   dynPredAt(int i, double t_abs, Eigen::Vector3d& c, Eigen::Vector3d& half, int& type) const;
+  double dynPredDist(int i, const Eigen::Vector3d& p, double t_abs, Eigen::Vector3d* grad = nullptr) const;
+  double dynPredMinDist(const Eigen::Vector3d& p, double t_abs) const;
+  bool dodgePoint(const Eigen::Vector3d& p, const Eigen::Vector3d& goal, double margin,
+                  Eigen::Vector3d& q);   // [CD2] diem ne ngang khoi vet quet phia truoc vat can
 
   inline void boundIndex(Eigen::Vector3i& id);
   inline bool isUnknown(const Eigen::Vector3i& id);
@@ -301,6 +313,15 @@ private:
     bool   has_v;
   };
   std::map<int, DynObjState> dyn_objs_;
+  struct DynPred {   // [CD2 P3] quy dao du doan cua mot vat can, moi dt giay tu t0
+    double t0, dt;
+    std::vector<Eigen::Vector3d> c;
+    Eigen::Vector3d half;
+    int type;
+  };
+  std::vector<DynPred> dyn_pred_;
+  void updateDynPred();                                                 // [CD2 P3]
+  bool footHitsStatic(const DynObjState& o, const Eigen::Vector3d& c);   // [CD2 25/10] than vat can cham vat can tinh
   ros::Publisher map_pub_, esdf_pub_, map_inf_pub_, update_range_pub_;
   ros::Publisher memory_pub_;   // [CD1] toan bo vat can tinh da nho (/sdf_map/memory)
   ros::Publisher unknown_pub_, depth_pub_;

@@ -42,9 +42,27 @@
   <arg name="dyn_check_horizon" default="-1.0"/>
   <arg name="yaw_mode" default="0"/>
   <arg name="astar_max_time" default="-1.0"/>
+  <arg name="astar_debug_dir" default=""/>   <!-- [CD2 21/10] -->
+  <arg name="guide_ignore_dyn" default="false"/>   <!-- [CD2 21/10] -->
+  <arg name="dyn_reflect" default="false"/>        <!-- [CD2 25/10] -->
+  <arg name="stop_on_fail" default="false"/>       <!-- [CD2 25/10] -->
+  <arg name="p3" default="false"/>                 <!-- [CD2 P3] -->
+  <arg name="guide_dyn_soft" default="0.0"/>       <!-- [CD2 P3L] -->
+  <arg name="dyn_pair" default="false"/>           <!-- [CD2 P3 26/10] -->
+  <arg name="p3_check_margin" default="0.2"/>      <!-- [CD2 P3 26/10] -->
+  <arg name="p3_escape_floor" default="0.0"/>      <!-- [CD2 P3 26/10] -->
+  <arg name="goal_dyn" default="0.0"/>             <!-- [CD2 P3 27/10] -->
+  <arg name="p3_lambda" default="5.0"/>
+  <arg name="p3_d0" default="0.5"/>
+  <arg name="p3_margin" default="0.3"/>
+  <arg name="search_zmin" default="-100000.0"/>
+  <arg name="search_zmax" default="100000.0"/>
+  <arg name="guide_clearance" default="0.2"/>
   <arg name="replan_latency" default="-1.0"/>
   <arg name="keep_memory" default="false"/>      <!-- [CD1] -->
   <arg name="global_guide" default="false"/>     <!-- [CD1] -->
+  <arg name="goal_retry" default="false"/>       <!-- [CD2] -->
+  <arg name="dyn_dodge" default="-1.0"/>         <!-- [CD2] -->
   <arg name="guide_dist" default="6.0"/>         <!-- [CD1] -->
   <arg name="guide_vel" default="1.0"/>          <!-- [CD1] -->
   <arg name="guide_soft_w" default="1.0"/>       <!-- [CD1] -->
@@ -127,9 +145,27 @@
     <arg name="dyn_check_horizon" value="$(arg dyn_check_horizon)"/>
     <arg name="yaw_mode" value="$(arg yaw_mode)"/>
     <arg name="astar_max_time" value="$(arg astar_max_time)"/>
+    <arg name="astar_debug_dir" value="$(arg astar_debug_dir)"/>
+    <arg name="guide_ignore_dyn" value="$(arg guide_ignore_dyn)"/>
+    <arg name="dyn_reflect" value="$(arg dyn_reflect)"/>
+    <arg name="stop_on_fail" value="$(arg stop_on_fail)"/>
+    <arg name="p3" value="$(arg p3)"/>
+    <arg name="guide_dyn_soft" value="$(arg guide_dyn_soft)"/>
+    <arg name="dyn_pair" value="$(arg dyn_pair)"/>
+    <arg name="p3_check_margin" value="$(arg p3_check_margin)"/>
+    <arg name="p3_escape_floor" value="$(arg p3_escape_floor)"/>
+    <arg name="goal_dyn" value="$(arg goal_dyn)"/>
+    <arg name="p3_lambda" value="$(arg p3_lambda)"/>
+    <arg name="p3_d0" value="$(arg p3_d0)"/>
+    <arg name="p3_margin" value="$(arg p3_margin)"/>
+    <arg name="search_zmin" value="$(arg search_zmin)"/>
+    <arg name="search_zmax" value="$(arg search_zmax)"/>
+    <arg name="guide_clearance" value="$(arg guide_clearance)"/>
     <arg name="replan_latency" value="$(arg replan_latency)"/>
     <arg name="keep_memory" value="$(arg keep_memory)"/>
     <arg name="global_guide" value="$(arg global_guide)"/>
+    <arg name="goal_retry" value="$(arg goal_retry)"/>
+    <arg name="dyn_dodge" value="$(arg dyn_dodge)"/>
     <arg name="guide_dist" value="$(arg guide_dist)"/>
     <arg name="guide_vel" value="$(arg guide_vel)"/>
     <arg name="guide_soft_w" value="$(arg guide_soft_w)"/>

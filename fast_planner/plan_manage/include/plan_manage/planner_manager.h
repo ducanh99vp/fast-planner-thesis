@@ -61,7 +61,7 @@ public:
   void initPlanModules(ros::NodeHandle& nh);
   void setGlobalWaypoints(vector<Eigen::Vector3d>& waypoints);
 
-  bool checkTrajCollision(double& distance);
+  bool checkTrajCollision(double& distance, bool real_only = false);   // [CD2] real_only: bo qua vet quet
 
   PlanParameters pp_;
   LocalTrajData local_data_;
@@ -79,6 +79,13 @@ public:
   double t_global_ms_ = 0.0;   // [CD1] cong vao t_fe cua lan lap ke hoach ngay sau
   bool globalPathFree(const vector<Eigen::Vector3d>& path, size_t from);   // [CD1]
   bool segmentFree(const Eigen::Vector3d& a, const Eigen::Vector3d& b);    // [CD1]
+  bool guide_ignore_dyn_ = false;   // [CD2 21/10] tam nhin chon dich tam bo qua vet quet
+  bool inDynSweep(const Eigen::Vector3d& p) {   // [CD2 21/10] o chi do vet quet
+    return edt_environment_->sdf_map_->getInflateOccupancy(p) == 1 && edt_environment_->sdf_map_->getDynOnly(p) == 1;
+  }
+  bool dodgeTarget(const Eigen::Vector3d& p, const Eigen::Vector3d& goal, double margin,
+                   Eigen::Vector3d& q) { return sdf_map_->dodgePoint(p, goal, margin, q); }   // [CD2]
+  void setStartEscape(double r) { kino_path_finder_->setStartEscape(r); }                  // [CD2]
 
 private:
   /* main planning algorithms & modules */

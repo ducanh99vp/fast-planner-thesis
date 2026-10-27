@@ -45,6 +45,7 @@ public:
   static const int ENDPOINT;
   static const int GUIDE;
   static const int WAYPOINTS;
+  static const int DYNAMIC;   // [CD2 P3] f_d: khoang cach toi vat can dong theo thoi gian
 
   static const int GUIDE_PHASE;
   static const int NORMAL_PHASE;
@@ -55,6 +56,9 @@ public:
   /* main API */
   void            setEnvironment(const EDTEnvironment::Ptr& env);
   void            setParam(ros::NodeHandle& nh);
+  void            setDynStart(double t_abs) { dyn_start_t_ = t_abs; }   // [CD2 P3] thoi gian tuyet doi cua t = 0
+  void            setDynScale(double s) { dyn_scale_ = s; }              // [CD2 P3] giam f_d khi pham khoang ho tinh
+  double          lambdaDyn() const { return lambda9_; }
   Eigen::MatrixXd BsplineOptimizeTraj(const Eigen::MatrixXd& points, const double& ts,
                                       const int& cost_function, int max_num_id, int max_time_id);
 
@@ -126,6 +130,13 @@ private:
   vector<Eigen::Vector3d> g_endpoint_;
   vector<Eigen::Vector3d> g_guide_;
   vector<Eigen::Vector3d> g_waypoints_;
+  vector<Eigen::Vector3d> g_dyn_;   // [CD2 P3]
+  /* [CD2 P3] f_d (chuyen tu nhanh luu-m4-m5-m6, M5/M6): lay mau DOC DUONG CONG moi dyn_sample_dt_ toi
+     t_dyn_max_, phat (d - d0(t))^2 khi khoang cach CO DAU toi vat can du doan TAI t nho hon
+     d0(t) = dist_dyn0_ + dyn_margin_rate_ * t. Du doan lay tu SDFMap (van toc khong doi + phan xa). */
+  double lambda9_ = 0.0, dist_dyn0_ = 0.5, dyn_margin_rate_ = 0.0, t_dyn_max_ = 1.5, dyn_sample_dt_ = 0.1;
+  double dyn_start_t_ = 0.0, dyn_scale_ = 1.0;
+  void calcDynCost(const vector<Eigen::Vector3d>& q, double& cost, vector<Eigen::Vector3d>& gradient);
 
   int                 variable_num_;   // optimization variables
   int                 iter_num_;       // iteration of the solver

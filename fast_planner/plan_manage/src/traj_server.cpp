@@ -46,6 +46,7 @@ using fast_planner::NonUniformBspline;
 bool receive_traj_ = false;
 vector<NonUniformBspline> traj_;
 double traj_duration_;
+double traj_full_duration_ = 0.0;   // [CD2 16/10] do dai day du cua quy dao dang bay
 ros::Time start_time_;
 int traj_id_;
 
@@ -185,6 +186,7 @@ void bsplineCallback(plan_manage::BsplineConstPtr msg) {
   traj_id_ = msg->traj_id;
   traj_ = tr;
   traj_duration_ = traj_[0].getTimeSum();
+  traj_full_duration_ = traj_duration_;   // [CD2 16/10]
   pending_ = false;
 
   receive_traj_ = true;
@@ -196,7 +198,9 @@ void replanCallback(std_msgs::Empty msg) {
   const double time_out = (replan_latency_ > 0.0) ? replan_latency_ + 0.05 : 0.01;
   ros::Time time_now = ros::Time::now();
   double t_stop = (time_now - start_time_).toSec() + time_out;
-  traj_duration_ = min(t_stop, traj_duration_);
+  /* [CD2 16/10] Che do ban giao: cat theo lan lap lai MOI NHAT (tinh tu do dai day du), khong
+     giu moc cat cua lan dau — neu khong, quy dao moi bat dau sau moc cat va UAV hut lenh. */
+  traj_duration_ = (replan_latency_ > 0.0) ? min(t_stop, traj_full_duration_) : min(t_stop, traj_duration_);
 }
 
 void newCallback(std_msgs::Empty msg) {
@@ -234,6 +238,7 @@ void cmdCallback(const ros::TimerEvent& e) {
     start_time_ = pending_start_;
     traj_id_ = pending_id_;
     traj_duration_ = pending_duration_;
+    traj_full_duration_ = pending_duration_;   // [CD2 16/10]
     pending_ = false;
   }
   double t_cur = (time_now - start_time_).toSec();

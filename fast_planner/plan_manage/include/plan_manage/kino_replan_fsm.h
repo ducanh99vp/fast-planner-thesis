@@ -86,6 +86,11 @@ private:
   double takeoff_height_;  // [Luan van - M3] <= 0: tat pha cat canh
   double goal_z_;   // [CD2] do cao dich; goc ep cung 1.0
   bool global_guide_;   // [CD1] dan duong toan cuc: lap ke hoach cuc bo toi diem tren duong toan cuc
+  bool goal_retry_;     // [CD2] het quy dao ma con cach dich > 0.5 m thi lap lai, khong bo dich
+  bool guide_dyn_soft_ = false;   // [CD2 P3L] duong toan cuc co chi phi mem vat can dong -> khong giu duong cu
+  Eigen::Vector3d goal_true_;   // [CD2] dich nhan duoc; end_pt_ co the la dich TAM khi vet quet de len dich
+  double dyn_dodge_;   // [CD2] > 0: ne ngang khoi vet quet phia truoc vat can, cach mep them dyn_dodge_ m
+  bool dodge_traj_ = false;   // [CD2] quy dao dang bay la quy dao ne ngang
   double guide_dist_;   // [CD1] khoang cach (theo duong) tu xuat phat toi dich tam
   double guide_vel_;    // [CD1] toc do tai dich tam, theo huong duong toan cuc (0 = dung lai)
   vector<Eigen::Vector3d> guide_path_;   // [CD1] duong toan cuc dang theo
@@ -98,6 +103,19 @@ private:
   /* planning data */
   bool trigger_, have_target_, have_odom_;
   bool takeoff_planned_;  // [Luan van - M3]
+  /* [CD2 P3] Cat canh co canh chung: pha cat canh (M3) la quy dao thang dung co dinh, FSM khong kiem va cham.
+     Bat takeoff_watch_: tu z >= takeoff_min_z_, neu du doan P3 thay vat can se cach cot cat canh duoi
+     takeoff_margin_ trong thoi gian cat canh con lai + 1 s thi ket thuc cat canh som, giao cho planner. */
+  bool   takeoff_watch_ = false;
+  double takeoff_min_z_ = 0.4, takeoff_margin_ = 0.5;
+  /* [CD2 P3 27/10] Doi dich TAM theo du doan: P3 khong ghi vat can dong vao ban do nen phep kiem dich goc
+     (ESDF) khong bao gio thay vat can dong sap quet qua dich (I4-R2 hat 7: tru di ngang dich, UAV cho sat
+     lan cua tru roi cham). goal_dyn_T_ > 0: UAV cach dich that < goal_dyn_range_ ma du doan thay vat can se
+     cach dich < goal_dyn_occ_ trong goal_dyn_T_ giay toi -> dich tam GAN nhat vua trong tinh (ESDF > 0.5)
+     vua cach moi vat can du doan >= goal_dyn_free_; tra lai dich that khi no cung dat goal_dyn_free_. */
+  double goal_dyn_T_ = 0.0, goal_dyn_occ_ = 0.5, goal_dyn_free_ = 0.7, goal_dyn_range_ = 5.0;
+  double goalDynClear(const Eigen::Vector3d& p);
+  bool   findDynSafeGoal(const Eigen::Vector3d& gc, Eigen::Vector3d& goal);
   FSM_EXEC_STATE exec_state_;
 
   Eigen::Vector3d odom_pos_, odom_vel_;  // odometry state
@@ -117,6 +135,9 @@ private:
   bool callKinodynamicReplan();        // front-end and back-end method
   Eigen::Vector3d guideTarget(Eigen::Vector3d& target_vel);   // [CD1] dich tam tren duong toan cuc
   bool planTakeoffTraj();   // [Luan van - M3] quy dao cat canh thang dung, khong qua A*
+  bool planStopTraj(const ros::Time& t0);   // [CD2 25/10] quy dao phanh dung tu trang thai ban giao
+  bool stop_on_fail_ = false;   // [CD2 25/10] lap ke hoach that bai + quy dao cu sap cham -> phanh dung
+  bool stopIfUnsafe(const ros::Time& t0);   // [CD2 25/10]
   void publishLocalTraj();  // [Luan van - M3] gui local_data_ cho traj_server
   bool needTakeoff();                                        // [Luan van - M3]
   bool callTopologicalTraj(int step);  // topo path guided gradient-based

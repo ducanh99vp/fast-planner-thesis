@@ -37,6 +37,8 @@ Astar::~Astar() {
 }
 
 int Astar::search(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt, bool dynamic, double time_start) {
+  s_start_ = start_pt;   // [CD2 P3L]
+  n_dyn_pen_ = 0;
   /* ---------- initialize ---------- */
   NodePtr cur_node = path_node_pool_[0];
   cur_node->parent = NULL;
@@ -167,6 +169,15 @@ int Astar::search(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt, bool dynamic
                                  : d_pos.squaredNorm();
           if (use_occ_ && soft_weight_ > 0.0 && !occFree(pro_pos, soft_clearance_))
             step *= 1.0 + soft_weight_;   // [CD1] uu tien di giua loi, van qua duoc cua hep
+          if (dyn_soft_w_ > 0.0) {   // [CD2 P3L] lan sap co vat can dong di qua thi dat hon
+            const double t_arr = (pro_pos - s_start_).norm() / dyn_soft_v_;
+            if (t_arr <= dyn_soft_tmax_) {
+              double dmin = 1e9;
+              for (double dt = -1.0; dt <= 1.0 + 1e-6; dt += 0.5)
+                dmin = std::min(dmin, edt_environment_->sdf_map_->dynPredMinDist(pro_pos, t_base_ + std::max(0.0, t_arr + dt)));
+              if (dmin < dyn_soft_r_) { step *= 1.0 + dyn_soft_w_; ++n_dyn_pen_; }
+            }
+          }
           tmp_g_score = step + cur_node->g_score;
           tmp_f_score = tmp_g_score + lambda_heu_ * getEuclHeu(pro_pos, end_pt);
 
@@ -226,6 +237,11 @@ void Astar::setParam(ros::NodeHandle& nh) {
   nh.param("astar/allocate_num", allocate_num_, -1);
   nh.param("astar/use_occ", use_occ_, false);     // [CD1]
   nh.param("astar/clearance", clearance_, 0.2);   // [CD1]
+  nh.param("astar/ignore_dyn", ignore_dyn_, false);   // [CD2 21/10] false = nhu CD1
+  nh.param("astar/dyn_soft_w", dyn_soft_w_, 0.0);      // [CD2 P3L] 0 = tat
+  nh.param("astar/dyn_soft_r", dyn_soft_r_, 0.5);
+  nh.param("astar/dyn_soft_v", dyn_soft_v_, 1.0);
+  nh.param("astar/dyn_soft_tmax", dyn_soft_tmax_, 3.0);
   nh.param("astar/soft_clearance", soft_clearance_, 0.5);   // [CD1]
   nh.param("astar/soft_weight", soft_weight_, 0.0);         // [CD1] 0 = tat
   nh.param("astar/z_min", z_min_, -1e5);   // [CD1]
@@ -245,7 +261,8 @@ bool Astar::occFree(const Eigen::Vector3d& p, double r) {
                                      { k, -k, 0 }, { -k, k, 0 }, { -k, -k, 0 } };
   for (const auto& o : off) {
     const Eigen::Vector3d q = p + r * Eigen::Vector3d(o[0], o[1], o[2]);
-    if (edt_environment_->sdf_map_->getInflateOccupancy(q) != 0) return false;
+    const int oc = edt_environment_->sdf_map_->getInflateOccupancy(q);
+    if (oc != 0 && !(ignore_dyn_ && oc == 1 && edt_environment_->sdf_map_->getDynOnly(q) == 1)) return false;
   }
   return true;
 }

@@ -46,6 +46,12 @@ void FastPlannerManager::initPlanModules(ros::NodeHandle& nh) {
   /* [CD2] huong B: diem quy dao XA hon chan troi nay (giay) ma chi cham VET QUET
      (khong cham vat can that) thi KHONG bat lap lai ke hoach. < 0 = tat. */
   nh.param("manager/dyn_check_horizon", pp_.dyn_check_horizon_, -1.0);
+  nh.param("manager/guide_ignore_dyn", guide_ignore_dyn_, false);   // [CD2 21/10]
+  nh.param("manager/dyn_cost", pp_.dyn_cost_, false);                  // [CD2 P3]
+  nh.param("manager/dyn_check_time", pp_.dyn_check_time_, false);      // [CD2 P3]
+  nh.param("manager/dyn_check_margin", pp_.dyn_check_margin_, 0.2);
+  nh.param("manager/dyn_check_tmax", pp_.dyn_check_tmax_, 1.5);
+  nh.param("manager/dyn_static_min", pp_.dyn_static_min_, 0.05);
   nh.param("manager/yaw_mode", pp_.yaw_mode_, 0);
   nh.param("manager/yaw_hold_dist", pp_.yaw_hold_dist_, 1.0);
   nh.param("manager/clearance_threshold", pp_.clearance_, -1.0);
@@ -108,10 +114,21 @@ bool FastPlannerManager::planGlobalPath(const Eigen::Vector3d& start, const Eige
   if (!geo_path_finder_) return false;
   ros::Time t1 = ros::Time::now();
   geo_path_finder_->reset();
+  geo_path_finder_->setTimeBase(ros::Time::now().toSec());   // [CD2 P3L]
   int status   = geo_path_finder_->search(start, end, false, -1.0);
   t_global_ms_ = (ros::Time::now() - t1).toSec() * 1000.0;
   if (status != Astar::REACH_END) return false;
   path = geo_path_finder_->getPath();
+  if (geo_path_finder_->n_dyn_pen_ > 0) {   // [CD2 P3L] chan doan: duong toan cuc co ne lan dong khong
+    Eigen::Vector3d p2 = path.back();
+    double s = 0.0;
+    for (size_t i = 1; i < path.size(); ++i) {
+      s += (path[i] - path[i - 1]).norm();
+      if (s >= 2.0) { p2 = path[i]; break; }
+    }
+    cout << "[CD2 P3L] duong toan cuc: " << geo_path_finder_->n_dyn_pen_ << " buoc bi phat vat can dong, diem 2 m: ("
+         << p2(0) << ", " << p2(1) << ")" << endl;
+  }
   return path.size() >= 2;
 }
 
@@ -132,7 +149,10 @@ bool FastPlannerManager::globalPathFree(const vector<Eigen::Vector3d>& path, siz
 bool FastPlannerManager::segmentFree(const Eigen::Vector3d& a, const Eigen::Vector3d& b) {
   const int n = std::max(1, (int)std::ceil((b - a).norm() / 0.05));
   for (int i = 1; i <= n; ++i)
-    if (edt_environment_->sdf_map_->getInflateOccupancy(a + (b - a) * (double(i) / n)) == 1) return false;
+  {
+    const Eigen::Vector3d p = a + (b - a) * (double(i) / n);
+    if (edt_environment_->sdf_map_->getInflateOccupancy(p) == 1 && !(guide_ignore_dyn_ && inDynSweep(p))) return false;
+  }
   return true;
 }
 
@@ -140,7 +160,7 @@ void FastPlannerManager::setGlobalWaypoints(vector<Eigen::Vector3d>& waypoints) 
   plan_data_.global_waypoints_ = waypoints;
 }
 
-bool FastPlannerManager::checkTrajCollision(double& distance) {
+bool FastPlannerManager::checkTrajCollision(double& distance, bool real_only) {
 
   double t_now = (ros::Time::now() - local_data_.start_time_).toSec();
 
@@ -161,12 +181,19 @@ bool FastPlannerManager::checkTrajCollision(double& distance) {
          nay soi toi ~6 m (~4 s). Diem UAV con lau moi toi ma "cham" vet quet thi
          khong phan anh nguy co that, chi lam lap lai ke hoach thua (do duoc: tuong
          quan so lan lap lai voi do dai duong +0.90). Vat can THAT thi van bat. */
-      const bool chi_vet_quet = pp_.dyn_check_horizon_ > 0.0 && fut_t > pp_.dyn_check_horizon_ &&
+      const bool chi_vet_quet = (real_only || (pp_.dyn_check_horizon_ > 0.0 && fut_t > pp_.dyn_check_horizon_)) &&
                                 !edt_environment_->sdf_map_->nearRealOccupied(fut_pt, 0.15);
       if (!chi_vet_quet) {
         distance = radius;
         return false;
       }
+    }
+    /* [CD2 P3] Vat can dong theo thoi gian: diem quy dao tai (bay gio + fut_t) so voi vi tri du doan cua
+       vat can TAI DUNG thoi diem do; chi tin du doan toi dyn_check_tmax_. */
+    if (pp_.dyn_check_time_ && !real_only && fut_t <= pp_.dyn_check_tmax_ &&
+        edt_environment_->sdf_map_->dynPredMinDist(fut_pt, ros::Time::now().toSec() + fut_t) < pp_.dyn_check_margin_) {
+      distance = radius;
+      return false;
     }
 
     radius = (fut_pt - cur_pt).norm();
@@ -198,8 +225,11 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
 
   /* [CD2 Indoor] Ban goc gan moc = luc BAT DAU lap ke hoach. Neu lap ke hoach mat 0.8 s,
      traj_server danh gia quy dao moi o t = 0.8 s -> lenh vi tri nhay ~1.2 m -> nghieng 75 do. */
-  local_data_.start_time_ = desired_start_time_.isZero() ? ros::Time::now() : desired_start_time_;
-  desired_start_time_     = ros::Time(0);
+  /* [CD2 16/10] Chi gan moc vao local_data_ khi lap ke hoach THANH CONG. Neu that bai, local_data_
+     van mo ta quy dao cu ma traj_server dang bay; truoc day moc bi doi ngay tu dau ham nen moi
+     phep tinh sau that bai (t = now - start_time) deu lech. */
+  const ros::Time new_start_time = desired_start_time_.isZero() ? ros::Time::now() : desired_start_time_;
+  desired_start_time_            = ros::Time(0);
   double t_search = 0.0, t_opt = 0.0, t_adjust = 0.0;
 
   Eigen::Vector3d init_pos = start_pt;
@@ -211,6 +241,7 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
   t1 = ros::Time::now();
 
   kino_path_finder_->reset();
+  kino_path_finder_->setTimeBase(new_start_time.toSec());   // [CD2 P3] t = 0 cua A* = luc quy dao moi bat dau
 
   int status = kino_path_finder_->search(start_pt, start_vel, start_acc, end_pt, end_vel, true);
 
@@ -264,7 +295,34 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
     cost_function |= BsplineOptimizer::ENDPOINT;
   }
 
+  const Eigen::MatrixXd ctrl_init = ctrl_pts;   // [CD2 P3] de giai lai khi f_d pham khoang ho tinh
+  if (pp_.dyn_cost_) {
+    cost_function |= BsplineOptimizer::DYNAMIC;
+    bspline_optimizers_[0]->setDynStart(new_start_time.toSec());
+    bspline_optimizers_[0]->setDynScale(1.0);
+  }
   ctrl_pts = bspline_optimizers_[0]->BsplineOptimizeTraj(ctrl_pts, ts, cost_function, 1, 1);
+  /* [CD2 P3] Chot M5: f_d la chi phi mem, co the day quy dao vao vat can TINH (M5: dam tuong 6/6 khi bi
+     don). Neu quy dao sau toi uu pham khoang ho tinh (ESDF < dyn_static_min_) thi giai lai voi f_d
+     x0.5, x0.25, x0 — buoc cuoi bo han f_d nen luon con nghiem an toan voi vat can tinh. */
+  if (pp_.dyn_cost_) {
+    auto staticOk = [&](const Eigen::MatrixXd& cp) {
+      NonUniformBspline b(cp, 3, ts);
+      const double T = b.getTimeSum();
+      for (double t = 0.0; t <= T; t += 0.05) {
+        Eigen::Vector3d p = b.evaluateDeBoorT(t);
+        if (edt_environment_->evaluateCoarseEDT(p, -1.0) < pp_.dyn_static_min_) return false;
+      }
+      return true;
+    };
+    for (double sc : { 0.5, 0.25, 0.0 }) {
+      if (staticOk(ctrl_pts)) break;
+      cout << "[CD2 P3] f_d day quy dao vao vat can tinh -> giai lai voi f_d x" << sc << endl;
+      bspline_optimizers_[0]->setDynScale(sc);
+      ctrl_pts = bspline_optimizers_[0]->BsplineOptimizeTraj(ctrl_init, ts, cost_function, 1, 1);
+    }
+    bspline_optimizers_[0]->setDynScale(1.0);
+  }
 
   t_opt = (ros::Time::now() - t1).toSec();
 
@@ -297,6 +355,7 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
 
   // save planned results
 
+  local_data_.start_time_    = new_start_time;   // [CD2 16/10]
   local_data_.position_traj_ = pos;
 
   double t_total = t_search + t_opt + t_adjust;

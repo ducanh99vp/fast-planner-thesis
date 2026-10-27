@@ -274,8 +274,17 @@ class MetricLogger(object):
                 # DA dong: phai RA HAN khoi vung nguong moi duoc mo lan moi.
                 # Khong co dieu kien nay thi mot lan tiep can duy nhat bi dem
                 # thanh nhieu lan khi no dang roi xa (da gap: 1 lan -> 5 dong).
+                # [CD2 16/10] NHUNG neu vat can QUAY LAI gan them hon enc_exit so voi diem xa
+                # nhat tu luc dong (nay lai, di qua lai trong hanh lang) thi do la mot lan tiep
+                # can MOI. Truoc day lan nay bi bo qua: 25/904 luot co d_min_dyn < 0.2 ma n_hit = 0.
+                st["d_far"] = max(st.get("d_far", d), d)
                 if d >= self.enc_thresh + self.enc_hyst:
                     del self.enc_state[oid]
+                elif d < st["d_far"] - self.enc_exit:
+                    self.enc_state[oid] = {
+                        "d_min": d, "t_min": t, "closed": False,
+                        "uav": p.copy(), "obj": o["c"].copy(),
+                        "vu": v_uav.copy(), "vo": o["v"].copy()}
             else:
                 if d < st["d_min"]:
                     st.update(d_min=d, t_min=t, uav=p.copy(),

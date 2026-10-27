@@ -41,6 +41,17 @@ void KinoReplanFSM::init(ros::NodeHandle& nh) {
   nh.param("fsm/takeoff_height", takeoff_height_, -1.0);  // [Luan van - M3]
   nh.param("fsm/goal_z", goal_z_, 1.0);   // [CD2] goc HKUST ep cung z dich = 1.0
   nh.param("fsm/global_guide", global_guide_, false);   // [CD1] false = ban goc
+  nh.param("fsm/goal_retry", goal_retry_, false);       // [CD2] false = ban goc
+  nh.param("fsm/guide_dyn_soft", guide_dyn_soft_, false);   // [CD2 P3L]
+  nh.param("fsm/dyn_dodge", dyn_dodge_, -1.0);          // [CD2] <= 0 = tat (ban goc)
+  nh.param("fsm/stop_on_fail", stop_on_fail_, false);   // [CD2 25/10] false = ban goc (bay tiep quy dao cu)
+  nh.param("fsm/takeoff_watch", takeoff_watch_, false);  // [CD2 P3]
+  nh.param("fsm/takeoff_min_z", takeoff_min_z_, 0.4);
+  nh.param("fsm/takeoff_margin", takeoff_margin_, 0.5);
+  nh.param("fsm/goal_dyn_T", goal_dyn_T_, 0.0);          // [CD2 P3 27/10] 0 = tat
+  nh.param("fsm/goal_dyn_occ", goal_dyn_occ_, 0.5);
+  nh.param("fsm/goal_dyn_free", goal_dyn_free_, 0.7);
+  nh.param("fsm/goal_dyn_range", goal_dyn_range_, 5.0);
   nh.param("fsm/guide_dist", guide_dist_, 6.0);         // [CD1] > search/horizon: A* dung o chan troi, diem cuoi mem nhu ban goc
   nh.param("fsm/guide_vel", guide_vel_, 1.0);           // [CD1]
   nh.param("fsm/guide_hidden_r", guide_hidden_r_, 2.5); // [CD1]
@@ -92,6 +103,7 @@ void KinoReplanFSM::waypointCallback(const nav_msgs::PathConstPtr& msg) {
   visualization_->drawGoal(end_pt_, 0.3, Eigen::Vector4d(1, 0, 0, 1.0));
   end_vel_.setZero();
   have_target_ = true;
+  goal_true_   = end_pt_;   // [CD2]
 
   if (exec_state_ == WAIT_TARGET)
     changeFSMExecState(needTakeoff() ? TAKEOFF : GEN_NEW_TRAJ, "TRIG");  // [Luan van - M3]
@@ -161,17 +173,39 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
     }
 
     case GEN_NEW_TRAJ: {
-      start_pt_  = odom_pos_;
-      start_vel_ = odom_vel_;
-      start_acc_.setZero();
+      LocalTrajData* info = &planner_manager_->local_data_;
+      if (replan_latency_ > 0.0 && info->traj_id_ > 0) {
+        /* [CD2 16/10] Lap lai sau that bai: lap tu trang thai LENH cua quy dao dang bay tai luc
+           ban giao (giong REPLAN_TRAJ), khong tu odom voi gia toc 0 va moc = luc bat dau lap — hai
+           thu do lam lenh nhay. Bao traj_server keo dai quy dao cu toi luc ban giao. */
+        double t = (ros::Time::now() - info->start_time_).toSec() + replan_latency_;
+        t        = min(max(t, 0.0), info->duration_);
+        start_pt_     = info->position_traj_.evaluateDeBoorT(t);
+        start_vel_    = info->velocity_traj_.evaluateDeBoorT(t);
+        start_acc_    = info->acceleration_traj_.evaluateDeBoorT(t);
+        start_yaw_(0) = info->yaw_traj_.evaluateDeBoorT(t)[0];
+        start_yaw_(1) = info->yawdot_traj_.evaluateDeBoorT(t)[0];
+        start_yaw_(2) = info->yawdotdot_traj_.evaluateDeBoorT(t)[0];
+        planner_manager_->desired_start_time_ = ros::Time::now() + ros::Duration(replan_latency_);
+        std_msgs::Empty replan_msg;
+        replan_pub_.publish(replan_msg);
+      } else {
+        start_pt_  = odom_pos_;
+        start_vel_ = odom_vel_;
+        start_acc_.setZero();
 
-      Eigen::Vector3d rot_x = odom_orient_.toRotationMatrix().block(0, 0, 3, 1);
-      start_yaw_(0)         = atan2(rot_x(1), rot_x(0));
-      start_yaw_(1) = start_yaw_(2) = 0.0;
+        Eigen::Vector3d rot_x = odom_orient_.toRotationMatrix().block(0, 0, 3, 1);
+        start_yaw_(0)         = atan2(rot_x(1), rot_x(0));
+        start_yaw_(1) = start_yaw_(2) = 0.0;
+      }
 
       bool success = callKinodynamicReplan();
+      const ros::Time t_ban_giao = planner_manager_->desired_start_time_;   // [CD2 25/10]
+      planner_manager_->desired_start_time_ = ros::Time(0);   // [CD2 16/10]
       if (success) {
         changeFSMExecState(EXEC_TRAJ, "FSM");
+      } else if (stopIfUnsafe(t_ban_giao)) {
+        changeFSMExecState(EXEC_TRAJ, "STOP");
       } else {
         // have_target_ = false;
         // changeFSMExecState(WAIT_TARGET, "FSM");
@@ -192,7 +226,15 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
       /* && (end_pt_ - pos).norm() < 0.5 */
       if (t_cur > info->duration_ - 1e-2) {
         /* [CD1] Quy dao het o DICH TAM, chua toi dich that: lap tiep, khong dung lai. */
-        if (global_guide_ && (end_pt_ - odom_pos_).norm() > 0.5) {
+        /* [CD2] Loi goc (M5): het quy dao bi coi la toi dich. Vat can dong lam quy dao ket thuc
+           truoc dich (do 16/10: I3 hat 9, I4-R2 hat 5 treo cach dich 1.0-1.3 m toi het gio). */
+        /* [CD2] goal_retry_: xet theo dich THAT. Neu dang dung o dich TAM (dich that con bi vet
+           quet de) thi cho tai cho: phep kiem 20 Hz tra lai dich that khi no trong, hoac doi
+           dich tam khi vet quet lan toi cho UAV dung. */
+        const Eigen::Vector3d& g = goal_retry_ ? goal_true_ : end_pt_;
+        if ((global_guide_ || goal_retry_) && (g - odom_pos_).norm() > 0.5) {
+          if (goal_retry_ && (end_pt_ - goal_true_).norm() > 1e-3 && (end_pt_ - odom_pos_).norm() < 0.5)
+            return;
           changeFSMExecState(GEN_NEW_TRAJ, "FSM");
           return;
         }
@@ -231,7 +273,14 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
            quy dao hien tai con dang CHO (lap lai lien tiep, t_cur < 0) thi cong don lam moc
            ban giao troi xa dan va bi ho voi quy dao cu da cat -> lenh v = 0 -> giat (do 13/10). */
         t_cur = min(max(t_cur + replan_latency_, 0.0), info->duration_);
-        planner_manager_->desired_start_time_ = info->start_time_ + ros::Duration(t_cur);
+        /* [CD2 24/10] Quy dao cu DA HET (UAV dang treo o diem cuoi, vd cho o dich tam) thi moc
+           "diem cuoi quy dao cu" da nam trong QUA KHU: traj_server bat dau quy dao moi giua chung,
+           lenh nhay -> I4-R3 hat 6 nghieng 54 do, 2.06 m/s (moc lui 1.0 s). Khong bao gio dat moc
+           som hon bay gio + replan_latency_. */
+        ros::Time t_start = info->start_time_ + ros::Duration(t_cur);
+        const ros::Time t_min = time_now + ros::Duration(replan_latency_);
+        if (t_start < t_min) t_start = t_min;
+        planner_manager_->desired_start_time_ = t_start;
       }
 
       start_pt_  = info->position_traj_.evaluateDeBoorT(t_cur);
@@ -246,9 +295,12 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
       replan_pub_.publish(replan_msg);
 
       bool success = callKinodynamicReplan();
+      const ros::Time t_ban_giao = planner_manager_->desired_start_time_;   // [CD2 25/10]
       planner_manager_->desired_start_time_ = ros::Time(0);   // [CD2 Indoor] khong de sot sang lan sau
       if (success) {
         changeFSMExecState(EXEC_TRAJ, "FSM");
+      } else if (stopIfUnsafe(t_ban_giao)) {
+        changeFSMExecState(EXEC_TRAJ, "STOP");
       } else {
         changeFSMExecState(GEN_NEW_TRAJ, "FSM");
       }
@@ -269,6 +321,24 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
       LocalTrajData* info    = &planner_manager_->local_data_;
       double         t_cur   = (ros::Time::now() - info->start_time_).toSec();
       bool           reached = fabs(odom_pos_(2) - takeoff_height_) < 0.1 && odom_vel_.norm() < 0.2;
+      /* [CD2 P3] I3T2B hat 3 (26/10): vat can lan giua di qua dung diem xuat phat luc UAV vua cat canh
+         xong (t 2.6 s), planner chua duoc phep lam gi -> cham -0.21. */
+      if (!reached && takeoff_watch_ && odom_pos_(2) >= takeoff_min_z_) {
+        const double t_left = max(0.0, info->duration_ - t_cur) + 1.0;
+        const double tnow   = ros::Time::now().toSec();
+        bool nguy = false;
+        for (double dt = 0.0; dt <= t_left + 1e-6 && !nguy; dt += 0.1)
+          for (double z = odom_pos_(2); z <= takeoff_height_ + 1e-6 && !nguy; z += 0.2)
+            if (planner_manager_->edt_environment_->sdf_map_->dynPredMinDist(
+                    Eigen::Vector3d(odom_pos_(0), odom_pos_(1), z), tnow + dt) < takeoff_margin_)
+              nguy = true;
+        if (nguy) {
+          cout << "[CD2 P3] vat can dong sap di qua cot cat canh -> ket thuc cat canh som o z = " << odom_pos_(2) << endl;
+          takeoff_planned_ = false;
+          changeFSMExecState(GEN_NEW_TRAJ, "TAKEOFF");
+          break;
+        }
+      }
       if (reached) {
         takeoff_planned_ = false;
         changeFSMExecState(GEN_NEW_TRAJ, "TAKEOFF");
@@ -280,12 +350,72 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
   }
 }
 
+/* [CD2 P3 27/10] Khoang cach nho nhat tu p toi moi vat can du doan trong goal_dyn_T_ giay toi. */
+double KinoReplanFSM::goalDynClear(const Eigen::Vector3d& p) {
+  const double tnow = ros::Time::now().toSec();
+  double dmin = 1e9;
+  for (double dt = 0.0; dt <= goal_dyn_T_ + 1e-6; dt += 0.1)
+    dmin = min(dmin, planner_manager_->edt_environment_->sdf_map_->dynPredMinDist(p, tnow + dt));
+  return dmin;
+}
+
+/* [CD2 P3 27/10] Dich tam GAN dich that nhat (vong 0.5 m, 12 huong, z +-0.3 nhu ban goc) vua trong tinh
+   vua khong bi vat can dong quet qua; cung ban kinh thi chon diem thoang nhat. */
+bool KinoReplanFSM::findDynSafeGoal(const Eigen::Vector3d& gc, Eigen::Vector3d& goal) {
+  auto edt_env = planner_manager_->edt_environment_;
+  for (double r = 0.5; r <= 2.5 + 1e-3; r += 0.5) {
+    double best = -1.0;
+    for (double theta = -90; theta <= 270; theta += 30)
+      for (double nz = 0.3; nz >= -0.3 - 1e-6; nz -= 0.3) {
+        Eigen::Vector3d p(gc(0) + r * cos(theta / 57.3), gc(1) + r * sin(theta / 57.3), gc(2) + nz);   // evaluateCoarseEDT can tham chieu khong const
+        const double ds = edt_env->evaluateCoarseEDT(p, -1.0);
+        if (ds <= 0.5) continue;
+        const double dd = goalDynClear(p);
+        if (dd < goal_dyn_free_) continue;
+        if (min(ds, dd) > best) {
+          best = min(ds, dd);
+          goal = p;
+        }
+      }
+    if (best > 0.0) return true;
+  }
+  return false;
+}
+
 void KinoReplanFSM::checkCollisionCallback(const ros::TimerEvent& e) {
   if (exec_state_ == TAKEOFF) return;  // [Luan van - M3] khong replan/doi dich trong luc cat canh
   LocalTrajData* info = &planner_manager_->local_data_;
 
   if (have_target_) {
     auto edt_env = planner_manager_->edt_environment_;
+
+    /* [CD2] Goc HKUST: dich bi chiem thi DOI HAN dich sang diem trong nhat quanh do — hop voi
+       vat can tinh. Vet quet vat can dong chi de len dich mot luc, nhung dich van bi doi mai:
+       UAV toi dich gia cach 1.0-1.3 m roi WAIT_TARGET, dung yen khong ne toi het gio (do 16/10:
+       I3 hat 9, I4-R2 hat 5, 4/4 luot co "change goal"). Tra lai dich that khi no trong
+       (nguong 0.5 > 0.3 de khong doi qua doi lai). */
+    if (goal_retry_ && (end_pt_ - goal_true_).norm() > 1e-3 &&
+        edt_env->evaluateCoarseEDT(goal_true_, -1.0) > 0.5 &&
+        (goal_dyn_T_ <= 0.0 || goalDynClear(goal_true_) >= goal_dyn_free_)) {   // [CD2 P3 27/10]
+      cout << "[CD2] dich that da trong, tra lai dich." << endl;
+      end_pt_ = goal_true_;
+      end_vel_.setZero();
+      visualization_->drawGoal(end_pt_, 0.3, Eigen::Vector4d(1, 0, 0, 1.0));
+      if (exec_state_ == EXEC_TRAJ) changeFSMExecState(REPLAN_TRAJ, "SAFETY");
+    }
+
+    /* [CD2 P3 27/10] vat can dong sap quet qua dich (dang dung) -> dich tam gan nhat an toan */
+    if (goal_dyn_T_ > 0.0 && goal_retry_ && (odom_pos_ - goal_true_).norm() < goal_dyn_range_ &&
+        goalDynClear(end_pt_) < goal_dyn_occ_) {
+      Eigen::Vector3d g;
+      if (findDynSafeGoal(goal_true_, g)) {
+        cout << "[CD2 P3] vat can dong sap quet qua dich -> dich tam (" << g(0) << ", " << g(1) << ")" << endl;
+        end_pt_ = g;
+        end_vel_.setZero();
+        visualization_->drawGoal(end_pt_, 0.3, Eigen::Vector4d(1, 0, 0, 1.0));
+        if (exec_state_ == EXEC_TRAJ) changeFSMExecState(REPLAN_TRAJ, "SAFETY");
+      }
+    }
 
     double dist = planner_manager_->pp_.dynamic_ ?
         edt_env->evaluateCoarseEDT(end_pt_, /* time to program start + */ info->duration_) :
@@ -297,14 +427,15 @@ void KinoReplanFSM::checkCollisionCallback(const ros::TimerEvent& e) {
       const double    dr = 0.5, dtheta = 30, dz = 0.3;
       double          new_x, new_y, new_z, max_dist = -1.0;
       Eigen::Vector3d goal;
+      const Eigen::Vector3d gc = goal_retry_ ? goal_true_ : end_pt_;   // [CD2] tim quanh dich THAT
 
       for (double r = dr; r <= 5 * dr + 1e-3; r += dr) {
         for (double theta = -90; theta <= 270; theta += dtheta) {
           for (double nz = 1 * dz; nz >= -1 * dz; nz -= dz) {
 
-            new_x = end_pt_(0) + r * cos(theta / 57.3);
-            new_y = end_pt_(1) + r * sin(theta / 57.3);
-            new_z = end_pt_(2) + nz;
+            new_x = gc(0) + r * cos(theta / 57.3);
+            new_y = gc(1) + r * sin(theta / 57.3);
+            new_z = gc(2) + nz;
 
             Eigen::Vector3d new_pt(new_x, new_y, new_z);
             dist = planner_manager_->pp_.dynamic_ ?
@@ -348,8 +479,16 @@ void KinoReplanFSM::checkCollisionCallback(const ros::TimerEvent& e) {
 
   /* ---------- check trajectory ---------- */
   if (exec_state_ == FSM_EXEC_STATE::EXEC_TRAJ) {
+    /* [CD2 16/10] Quy dao vua lap con CHO toi luc ban giao (replan_latency): de no bat dau da.
+       Neu kiem va lap lai o day, 20 Hz, quy dao moi bi thay truoc khi kip dung, UAV bay het quy
+       dao cu da bi cat roi phanh, toi khi ngung lai thi lenh nhay (do 16/10: I3 hat 2, 98 lan lap
+       lai lien tiep, nghieng 72-101 do). */
+    if (replan_latency_ > 0.0 && ros::Time::now() < info->start_time_) return;
     double dist;
-    bool   safe = planner_manager_->checkTrajCollision(dist);
+    /* [CD2] Quy dao ne ngang CO Y cat qua vet quet cua vat can dang ne: chi bat vat can that,
+       neu khong no bi thay ngay (0.2-0.6 s) bang quy dao huong ve dich -> doi chieu, nghieng
+       25-33 do (do 16/10, thu nhanh P2HC3). */
+    bool   safe = planner_manager_->checkTrajCollision(dist, dodge_traj_);
 
     if (!safe) {
       // cout << "current traj in collision." << endl;
@@ -376,7 +515,9 @@ Eigen::Vector3d KinoReplanFSM::guideTarget(Eigen::Vector3d& target_vel) {
       const double d = (guide_path_[i] - start_pt_).norm();
       if (d < dmin) { dmin = d; k0 = i; }
     }
-    reuse = dmin < 1.0 && planner_manager_->globalPathFree(guide_path_, k0);
+    /* [CD2 P3L] co chi phi mem vat can dong thi lap lai duong toan cuc moi lan (lan dong thay doi theo
+       thoi gian); khong thi giu duong cu nhu CD1. */
+    reuse = !guide_dyn_soft_ && dmin < 1.0 && planner_manager_->globalPathFree(guide_path_, k0);
   }
   if (!reuse) {
     vector<Eigen::Vector3d> path;
@@ -407,6 +548,23 @@ Eigen::Vector3d KinoReplanFSM::guideTarget(Eigen::Vector3d& target_vel) {
   }
   if (best + 1 >= n) return end_pt_;   // nhin thay dich that: ve dich, van toc cuoi = end_vel_
   if (best == k0) best = k0 + 1;
+  /* [CD2 21/10] Tam nhin bo qua vet quet nen dich tam co the roi VAO vet quet: doi TIEN doc duong
+     (toi 2 m) toi o trong — A* cuc bo phai vong qua vat can de toi do, khong dung truoc mat no;
+     khong co thi doi LUI. */
+  if (planner_manager_->guide_ignore_dyn_ && planner_manager_->inDynSweep(guide_path_[best])) {
+    size_t q = best;
+    double ds = 0.0;
+    while (q + 1 < n && ds < 2.0 && planner_manager_->inDynSweep(guide_path_[q])) {
+      ds += (guide_path_[q + 1] - guide_path_[q]).norm();
+      ++q;
+    }
+    if (planner_manager_->inDynSweep(guide_path_[q])) {
+      q = best;
+      while (q > k0 + 1 && planner_manager_->inDynSweep(guide_path_[q])) --q;
+    }
+    best = q;
+    if (best + 1 >= n) return end_pt_;
+  }
   /* Van toc tai dich tam theo huong duong, giam theo khoang cach: dich tam gan (sau goc) thi
      quy dao ngan, ep 1 m/s o cuoi se giat. */
   const double dsub = (guide_path_[best] - start_pt_).norm();
@@ -420,8 +578,31 @@ bool KinoReplanFSM::callKinodynamicReplan() {
      khong phai dich that. end_pt_ van la dich that (dung de xet toi dich). */
   Eigen::Vector3d target_vel = end_vel_;
   Eigen::Vector3d target     = global_guide_ ? guideTarget(target_vel) : end_pt_;
+  /* [CD2] Ne ngang: diem xuat phat nam trong vet quet PHIA TRUOC mot vat can dang lao toi ->
+     lap ke hoach toi diem ne (vuong goc huong vat can, ngoai vet quet) thay vi toi dich; het
+     quy dao ne thi EXEC_TRAJ lap tiep toi dich. Bong bong thoat noi rong cho het doan ne (doan
+     do cat ngang vet quet cua chinh vat can dang ne). Van toc tai diem ne: 0.5 m/s huong ve
+     dich nhung bo thanh phan quay lai lan vat can — dung han o diem ne roi moi bay tiep lam UAV
+     doi chieu, nghieng 26-33 do (thu nhanh 16/10). */
+  bool dodge = false;
+  if (dyn_dodge_ > 0.0) {
+    Eigen::Vector3d q;
+    if (planner_manager_->dodgeTarget(start_pt_, end_pt_, dyn_dodge_, q) && (q - start_pt_).norm() > 0.25) {
+      dodge  = true;
+      target = q;
+      target_vel.setZero();
+      Eigen::Vector3d g = end_pt_ - q, out = q - start_pt_;
+      g(2) = 0.0; out(2) = 0.0; out.normalize();
+      if (g.dot(out) < 0.0) g -= g.dot(out) * out;   // khong quay lai lan
+      if (g.norm() > 0.1) target_vel = 0.5 * g.normalized();
+      planner_manager_->setStartEscape((q - start_pt_).norm() + 0.15);
+      cout << "[CD2] ne ngang toi " << q.transpose() << endl;
+    }
+  }
   bool plan_success =
       planner_manager_->kinodynamicReplan(start_pt_, start_vel_, start_acc_, target, target_vel);
+  if (dodge) planner_manager_->setStartEscape(-1.0);
+  if (plan_success) dodge_traj_ = dodge;
 
   if (plan_success) {
 
@@ -482,6 +663,58 @@ void KinoReplanFSM::publishLocalTraj() {
 // [Luan van - M3] Quy dao cat canh thang dung, dung truc tiep bang B-spline, KHONG qua A*/toi uu.
 // Ly do: san ban do nam o z = 0; UAV dang dau tren san nam trong o vat can da phinh nen
 // kinodynamic A* khong mo rong duoc nut nao (NO_PATH).
+/* [CD2 25/10] P5 TOI THIEU. Ban goc (va ban chong bao lap lai 16/10): lap ke hoach that bai thi UAV
+   BAY TIEP quy dao cu. Khi du doan (vet quet, phan xa o tuong) cho biet quy dao cu sap di vao vung bi
+   chiem, bay tiep la lao vao do (I4-R3 hat 1: 2.6 s khong lap duoc ke hoach nao, quy dao cu dua UAV
+   vao cua D dung luc hop bat lai -> cham). Chi khi do: thay bang quy dao PHANH DEU theo huong dang bay
+   (gia toc 0.8 max_acc) roi treo tai cho; quy dao cu con an toan thi giu nguyen hanh vi cu. */
+bool KinoReplanFSM::stopIfUnsafe(const ros::Time& t0) {
+  if (!stop_on_fail_ || replan_latency_ <= 0.0) return false;
+  double dist;
+  if (planner_manager_->checkTrajCollision(dist)) return false;   // quy dao cu con an toan
+  cout << "[CD2] lap ke hoach that bai + quy dao cu sap cham (" << dist << " m) -> phanh dung" << endl;
+  return planStopTraj(t0);
+}
+
+bool KinoReplanFSM::planStopTraj(const ros::Time& t0) {
+  auto&                 pp = planner_manager_->pp_;
+  const double          a  = 0.8 * pp.max_acc_;
+  const Eigen::Vector3d v0 = start_vel_;
+  const double          s0 = v0.norm();
+  const double          Tb = s0 / a;                       // thoi gian phanh
+  const double          Th = 0.4;                          // treo them cho dung han
+  const Eigen::Vector3d u  = s0 > 1e-3 ? Eigen::Vector3d(v0 / s0) : Eigen::Vector3d::Zero();
+  const int             n  = max(4, int(ceil((Tb + Th) / 0.05)));
+  const double          dt = (Tb + Th) / n;
+  vector<Eigen::Vector3d> pts;
+  for (int i = 0; i <= n; ++i) {
+    const double t = min(i * dt, Tb);
+    pts.push_back(start_pt_ + u * (s0 * t - 0.5 * a * t * t));
+  }
+  vector<Eigen::Vector3d> derivs = { v0, Eigen::Vector3d::Zero(), start_acc_, Eigen::Vector3d::Zero() };
+  Eigen::MatrixXd ctrl_pts;
+  NonUniformBspline::parameterizeToBspline(dt, pts, derivs, ctrl_pts);
+
+  LocalTrajData* info      = &planner_manager_->local_data_;
+  info->start_time_        = t0.isZero() ? ros::Time::now() : t0;
+  info->position_traj_     = NonUniformBspline(ctrl_pts, 3, dt);
+  info->velocity_traj_     = info->position_traj_.getDerivative();
+  info->acceleration_traj_ = info->velocity_traj_.getDerivative();
+  info->start_pos_         = info->position_traj_.evaluateDeBoorT(0.0);
+  info->duration_          = info->position_traj_.getTimeSum();
+  info->traj_id_ += 1;
+  int             seg_num = max(1, int(ceil(info->duration_ / 0.3)));
+  Eigen::MatrixXd yaw     = Eigen::MatrixXd::Constant(seg_num + 3, 1, start_yaw_(0));   // giu huong mui
+  info->yaw_traj_.setUniformBspline(yaw, 3, info->duration_ / seg_num);
+  info->yawdot_traj_    = info->yaw_traj_.getDerivative();
+  info->yawdotdot_traj_ = info->yawdot_traj_.getDerivative();
+  dodge_traj_ = false;
+  publishLocalTraj();
+  visualization_->drawBspline(info->position_traj_, 0.1, Eigen::Vector4d(1.0, 0.5, 0.0, 1), true, 0.2,
+                              Eigen::Vector4d(1, 0.5, 0, 1));
+  return true;
+}
+
 bool KinoReplanFSM::planTakeoffTraj() {
   const double dz = takeoff_height_ - odom_pos_(2);
   if (dz <= 0.0) return false;

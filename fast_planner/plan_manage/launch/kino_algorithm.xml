@@ -40,10 +40,29 @@
   <arg name="dyn_check_horizon" default="-1.0"/>
   <arg name="yaw_mode" default="0"/>
   <arg name="astar_max_time" default="-1.0"/>
+  <arg name="astar_debug_dir" default=""/>   <!-- [CD2 21/10] log chan doan A*, rong = tat -->
+  <!-- [CD2 21/10] TN2 + P2: duong toan cuc / tam nhin bo qua vet quet; dai do cao A* cuc bo (mac dinh tat) -->
+  <arg name="guide_ignore_dyn" default="false"/>
+  <arg name="dyn_reflect" default="false"/>   <!-- [CD2 25/10] du doan biet tuong -->
+  <arg name="stop_on_fail" default="false"/>  <!-- [CD2 25/10] phanh dung khi that bai + quy dao cu sap cham -->
+  <!-- [CD2 P3] vat can dong THEO THOI GIAN (A* + f_d + phep kiem 20 Hz); mac dinh tat -->
+  <arg name="p3" default="false"/>
+  <arg name="guide_dyn_soft" default="0.0"/>   <!-- [CD2 P3L] trong so chi phi mem vat can dong cho duong toan cuc; 0 = tat -->
+  <arg name="dyn_pair" default="false"/>   <!-- [CD2 P3 26/10] du doan hai vat can dong dung nhau -->
+  <arg name="p3_check_margin" default="0.2"/>   <!-- [CD2 P3 26/10] bien phep kiem 20 Hz; 0.2 = dung bang nguong sach -->
+  <arg name="p3_escape_floor" default="0.0"/>   <!-- [CD2 P3 26/10] bong bong thoat khong cho lai gan hon min(luc xuat phat, gia tri nay) -->
+  <arg name="goal_dyn" default="0.0"/>   <!-- [CD2 P3 27/10] cua so du doan (s) de doi dich tam khi vat can dong sap quet qua dich; 0 = tat -->
+  <arg name="p3_lambda" default="5.0"/>
+  <arg name="p3_d0" default="0.5"/>
+  <arg name="p3_margin" default="0.3"/>
+  <arg name="search_zmin" default="-100000.0"/>
+  <arg name="search_zmax" default="100000.0"/>
   <arg name="replan_latency" default="-1.0"/>
   <!-- [CD1] ban do co tri nho + dan duong toan cuc (false = ban goc) -->
   <arg name="keep_memory"     default="false"/>
   <arg name="global_guide"    default="false"/>
+  <arg name="goal_retry"      default="false"/>   <!-- [CD2] -->
+  <arg name="dyn_dodge"       default="-1.0"/>    <!-- [CD2] -->
   <arg name="guide_dist"      default="6.0"/>
   <arg name="guide_res"       default="0.2"/>
   <arg name="guide_clearance" default="0.2"/>
@@ -149,6 +168,31 @@
     <param name="manager/dyn_check_horizon" value="$(arg dyn_check_horizon)" type="double"/>
     <param name="manager/yaw_mode" value="$(arg yaw_mode)" type="int"/>
     <param name="search/max_search_time" value="$(arg astar_max_time)" type="double"/>
+    <param name="search/debug_dir" value="$(arg astar_debug_dir)" type="str"/>   <!-- [CD2 21/10] -->
+    <param name="search/z_min" value="$(arg search_zmin)" type="double"/>   <!-- [CD2 21/10] -->
+    <param name="sdf_map/dyn_reflect" value="$(arg dyn_reflect)" type="bool"/>   <!-- [CD2 25/10] -->
+    <param name="fsm/stop_on_fail" value="$(arg stop_on_fail)" type="bool"/>   <!-- [CD2 25/10] -->
+    <!-- [CD2 P3] chi dat khi p3 = true; khong dat thi ma dung mac dinh (tat) -->
+    <param name="sdf_map/dyn_pred_T" value="3.0" type="double" if="$(arg p3)"/>
+    <param name="sdf_map/dyn_pred_pair" value="$(arg dyn_pair)" type="bool"/>   <!-- [CD2 P3 26/10] -->
+    <param name="astar/dyn_soft_w" value="$(arg guide_dyn_soft)" type="double"/>   <!-- [CD2 P3L] -->
+    <param name="fsm/guide_dyn_soft" value="$(eval arg('guide_dyn_soft') > 0)" type="bool"/>
+    <param name="search/dyn_time" value="true" type="bool" if="$(arg p3)"/>
+    <param name="search/dyn_margin" value="$(arg p3_margin)" type="double" if="$(arg p3)"/>
+    <param name="search/dyn_escape_floor" value="$(arg p3_escape_floor)" type="double"/>   <!-- [CD2 P3 26/10] -->
+    <param name="search/dyn_tmax" value="3.0" type="double" if="$(arg p3)"/>
+    <param name="optimization/lambda9" value="$(arg p3_lambda)" type="double" if="$(arg p3)"/>
+    <param name="optimization/dist_dyn0" value="$(arg p3_d0)" type="double" if="$(arg p3)"/>
+    <param name="optimization/t_dyn_max" value="1.5" type="double" if="$(arg p3)"/>
+    <param name="optimization/dyn_sample_dt" value="0.1" type="double" if="$(arg p3)"/>
+    <param name="manager/dyn_cost" value="true" type="bool" if="$(arg p3)"/>
+    <param name="manager/dyn_check_time" value="true" type="bool" if="$(arg p3)"/>
+    <param name="manager/dyn_check_margin" value="$(arg p3_check_margin)" type="double" if="$(arg p3)"/>
+    <param name="manager/dyn_check_tmax" value="1.5" type="double" if="$(arg p3)"/>
+    <param name="fsm/takeoff_watch" value="true" type="bool" if="$(arg p3)"/>   <!-- [CD2 P3] cat canh co canh chung -->
+    <param name="search/z_max" value="$(arg search_zmax)" type="double"/>
+    <param name="astar/ignore_dyn" value="$(arg guide_ignore_dyn)" type="bool"/>
+    <param name="manager/guide_ignore_dyn" value="$(arg guide_ignore_dyn)" type="bool"/>
     <param name="fsm/replan_latency" value="$(arg replan_latency)" type="double"/>
     <param name="manager/local_segment_length" value="6.0" type="double"/>
     <param name="manager/clearance_threshold" value="0.2" type="double"/>
@@ -157,6 +201,9 @@
     <param name="manager/use_geometric_path" value="$(arg global_guide)" type="bool"/>   <!-- [CD1] -->
     <param name="sdf_map/keep_memory" value="$(arg keep_memory)" type="bool"/>
     <param name="fsm/global_guide" value="$(arg global_guide)" type="bool"/>
+    <param name="fsm/goal_retry" value="$(arg goal_retry)" type="bool"/>   <!-- [CD2] -->
+    <param name="fsm/goal_dyn_T" value="$(arg goal_dyn)" type="double"/>   <!-- [CD2 P3 27/10] -->
+    <param name="fsm/dyn_dodge" value="$(arg dyn_dodge)" type="double"/>   <!-- [CD2] -->
     <param name="fsm/guide_dist" value="$(arg guide_dist)" type="double"/>
     <param name="fsm/guide_vel" value="$(arg guide_vel)" type="double"/>
     <param name="astar/soft_clearance" value="0.5" type="double"/>

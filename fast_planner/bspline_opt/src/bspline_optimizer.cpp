@@ -35,6 +35,7 @@ const int BsplineOptimizer::FEASIBILITY = (1 << 2);
 const int BsplineOptimizer::ENDPOINT    = (1 << 3);
 const int BsplineOptimizer::GUIDE       = (1 << 4);
 const int BsplineOptimizer::WAYPOINTS   = (1 << 6);
+const int BsplineOptimizer::DYNAMIC     = (1 << 8);   // [CD2 P3]
 
 const int BsplineOptimizer::GUIDE_PHASE = BsplineOptimizer::SMOOTHNESS | BsplineOptimizer::GUIDE;
 const int BsplineOptimizer::NORMAL_PHASE =
@@ -51,6 +52,11 @@ void BsplineOptimizer::setParam(ros::NodeHandle& nh) {
   nh.param("optimization/lambda8", lambda8_, -1.0);
 
   nh.param("optimization/dist0", dist0_, -1.0);
+  nh.param("optimization/lambda9", lambda9_, 0.0);              // [CD2 P3] 0 = tat
+  nh.param("optimization/dist_dyn0", dist_dyn0_, 0.5);          // [CD2 P3]
+  nh.param("optimization/dyn_margin_rate", dyn_margin_rate_, 0.0);
+  nh.param("optimization/t_dyn_max", t_dyn_max_, 1.5);          // [CD2 P3] diem hoa du doan ~1.75 s (M5)
+  nh.param("optimization/dyn_sample_dt", dyn_sample_dt_, 0.1);
   nh.param("optimization/max_vel", max_vel_, -1.0);
   nh.param("optimization/max_acc", max_acc_, -1.0);
   nh.param("optimization/visib_min", visib_min_, -1.0);
@@ -98,6 +104,7 @@ void BsplineOptimizer::setCostFunction(const int& cost_code) {
   if (cost_function_ & ENDPOINT) cost_str += " endpt |";
   if (cost_function_ & GUIDE) cost_str += " guide |";
   if (cost_function_ & WAYPOINTS) cost_str += " waypt |";
+  if (cost_function_ & DYNAMIC) cost_str += " dyn |";   // [CD2 P3]
 
   ROS_INFO_STREAM("cost func: " << cost_str);
 }
@@ -130,6 +137,7 @@ void BsplineOptimizer::optimize() {
   g_q_.resize(pt_num);
   g_smoothness_.resize(pt_num);
   g_distance_.resize(pt_num);
+  g_dyn_.resize(pt_num);   // [CD2 P3]
   g_feasibility_.resize(pt_num);
   g_endpoint_.resize(pt_num);
   g_waypoints_.resize(pt_num);
@@ -214,6 +222,47 @@ void BsplineOptimizer::calcSmoothnessCost(const vector<Eigen::Vector3d>& q, doub
     gradient[i + 1] += 3.0 * temp_j;
     gradient[i + 2] += -3.0 * temp_j;
     gradient[i + 3] += temp_j;
+  }
+}
+
+/* [CD2 P3] f_d lay mau doc duong cong B-spline bac 3 deu. Tai t: s = t/ts, doan a = floor(s), co so
+   b[0..3] (u = s - a), p = sum b[m] q[a+m]; gradient phan ve 4 diem dieu khien theo dung trong so
+   (diem bi khoa van nhan nhung combineCost chi doc tu order_). w_samp = dt/ts: xap xi tich phan theo
+   thoi gian, khong phu thuoc buoc lay mau (kiem chung o M6: sai so gradient 1.8e-9). */
+void BsplineOptimizer::calcDynCost(const vector<Eigen::Vector3d>& q, double& cost,
+                                   vector<Eigen::Vector3d>& gradient) {
+  cost = 0.0;
+  for (auto& g : gradient) g.setZero();
+  const SDFMap::Ptr& mp = edt_environment_->sdf_map_;
+  const int n_obs = mp->dynPredNum();
+  if (n_obs == 0 || dyn_sample_dt_ <= 0.0) return;
+  const double w_samp = dyn_sample_dt_ / bspline_interval_;
+  const double t_cap  = std::min(t_dyn_max_, double(int(q.size()) - 4) * bspline_interval_);
+  if (t_cap < 0.0) return;
+  const int n_samp = int(std::floor(t_cap / dyn_sample_dt_)) + 1;
+  for (int si = 0; si < n_samp; ++si) {
+    const double t = double(si) * dyn_sample_dt_;
+    const double s = t / bspline_interval_;
+    const int    a = int(std::floor(s));
+    const double u = s - double(a);
+    if (a < 0 || a + 3 >= int(q.size())) continue;
+    const double u2 = u * u, u3 = u2 * u;
+    double b[4];
+    b[0] = (1.0 - 3.0 * u + 3.0 * u2 - u3) / 6.0;
+    b[1] = (4.0 - 6.0 * u2 + 3.0 * u3) / 6.0;
+    b[2] = (1.0 + 3.0 * u + 3.0 * u2 - 3.0 * u3) / 6.0;
+    b[3] = u3 / 6.0;
+    const Eigen::Vector3d p = b[0] * q[a] + b[1] * q[a + 1] + b[2] * q[a + 2] + b[3] * q[a + 3];
+    const double d0 = dist_dyn0_ + dyn_margin_rate_ * t;
+    for (int k = 0; k < n_obs; ++k) {
+      Eigen::Vector3d dg;
+      const double dist = mp->dynPredDist(k, p, dyn_start_t_ + t, &dg);
+      if (dist < d0) {
+        cost += w_samp * (dist - d0) * (dist - d0);
+        const Eigen::Vector3d g = 2.0 * w_samp * (dist - d0) * dg;
+        for (int m = 0; m < 4; ++m) gradient[a + m] += b[m] * g;
+      }
+    }
   }
 }
 
@@ -432,6 +481,14 @@ void BsplineOptimizer::combineCost(const std::vector<double>& x, std::vector<dou
     f_combine += lambda7_ * f_waypoints;
     for (int i = 0; i < variable_num_ / dim_; i++)
       for (int j = 0; j < dim_; j++) grad[dim_ * i + j] += lambda7_ * g_waypoints_[i + order_](j);
+  }
+  if ((cost_function_ & DYNAMIC) && lambda9_ > 0.0 && dyn_scale_ > 0.0) {   // [CD2 P3]
+    double f_dyn = 0.0;
+    calcDynCost(g_q_, f_dyn, g_dyn_);
+    const double w = lambda9_ * dyn_scale_;
+    f_combine += w * f_dyn;
+    for (int i = 0; i < variable_num_ / dim_; i++)
+      for (int j = 0; j < dim_; j++) grad[dim_ * i + j] += w * g_dyn_[i + order_](j);
   }
   /*  print cost  */
   // if ((cost_function_ & WAYPOINTS) && iter_num_ % 10 == 0) {

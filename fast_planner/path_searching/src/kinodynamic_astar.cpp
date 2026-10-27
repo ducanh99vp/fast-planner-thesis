@@ -52,9 +52,78 @@ bool KinodynamicAstar::occupiedForSearch(const Eigen::Vector3d& pos) {
   return true;
 }
 
+/* [CD2 P3] Bong bong thoat: gan diem xuat phat (start_escape_) chi loai khi ben trong than vat can
+   (d < 0), de UAV dang sat vat can van tim duoc buoc di ra. CHI bat khi diem xuat phat da nam trong
+   bien dyn_margin_ (dyn_escape_): ban dau bat luon -> UAV dung cho cach hop 0.5 m duoc phep ve duong
+   sat lan cua hop ngay doan dau -> cham (I4-R3 hat 1, 26/10).
+   [26/10] d > 0 van qua de: xuat phat cach tru 0.29 m, duong ban toi dich cat ngang mui tru 0.11 m
+   nam tron trong bong bong (I4-R2 hat 7). dyn_escape_floor_ > 0: khong cho lai gan hon
+   min(khoang cach luc xuat phat, dyn_escape_floor_) — chi duoc di ra, khong duoc lai gan. */
+bool KinodynamicAstar::dynHit(const Eigen::Vector3d& pos, double t_rel) {
+  if (!dyn_time_ || t_rel > dyn_tmax_) return false;
+  const double d = edt_environment_->sdf_map_->dynPredMinDist(pos, t_base_ + t_rel);
+  if (d >= dyn_margin_) return false;
+  const double d_floor = std::max(0.0, std::min(dyn_start_d_, dyn_escape_floor_));
+  if (dyn_escape_ && (pos - search_start_).norm() < start_escape_ && d > d_floor) return false;
+  return true;
+}
+
+/* [CD2 21/10] Vo boc: chay tim nhu cu, roi ghi log chan doan neu bat (moi duong return deu qua day). */
 int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, Eigen::Vector3d start_a,
                              Eigen::Vector3d end_pt, Eigen::Vector3d end_v, bool init, bool dynamic, double time_start)
 {
+  dbg_nodes_.clear();
+  const int r = searchImpl(start_pt, start_v, start_a, end_pt, end_v, init, dynamic, time_start);
+  if (!debug_dir_.empty()) dumpSearch(r, start_pt, start_v, start_a, end_pt, init);
+  return r;
+}
+
+void KinodynamicAstar::dumpSearch(int ket_qua, const Eigen::Vector3d& sp, const Eigen::Vector3d& sv,
+                                  const Eigen::Vector3d& sa, const Eigen::Vector3d& ep, bool init) {
+  char ten[512];
+  snprintf(ten, sizeof(ten), "%s/tim_%04d.txt", debug_dir_.c_str(), debug_count_++);
+  FILE* f = fopen(ten, "w");
+  if (!f) return;
+  fprintf(f, "stamp %.4f\nket_qua %d\ninit %d\nescape %.3f %d\n", ros::Time::now().toSec(), ket_qua,
+          int(init), start_escape_, int(escape_active_));
+  fprintf(f, "start %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n", sp(0), sp(1), sp(2), sv(0), sv(1),
+          sv(2), sa(0), sa(1), sa(2));
+  fprintf(f, "goal %.4f %.4f %.4f\n", ep(0), ep(1), ep(2));
+  const bool co_duong = (ket_qua == REACH_HORIZON || ket_qua == REACH_END || ket_qua == NEAR_END);
+  fprintf(f, "path %d\n", co_duong ? int(path_nodes_.size()) : 0);
+  if (co_duong)
+    for (const auto& n : path_nodes_)
+      fprintf(f, "%.3f %.3f %.3f %.3f %.3f %.3f\n", n->state(0), n->state(1), n->state(2), n->state(3),
+              n->state(4), n->state(5));
+  fprintf(f, "nodes %d\n", int(dbg_nodes_.size()));
+  for (const auto& d : dbg_nodes_)
+    fprintf(f, "%.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %d %d %d %d %d %d\n", d.p(0), d.p(1), d.p(2),
+            d.v(0), d.v(1), d.v(2), d.g, d.f, d.t, d.add, d.r_close, d.r_vel, d.r_same, d.r_dyn, d.r_static);
+  /* lat cat ban do 10 x 10 m quanh diem xuat phat: 0 trong, 1 vat can that (da phinh), 2 chi vet quet */
+  const double res = 0.1;
+  const int nn = 101;
+  for (double z : {sp(2), 1.0}) {
+    fprintf(f, "map %.2f %.2f %.2f %.2f %d\n", z, sp(0) - 5.0, sp(1) - 5.0, res, nn);
+    for (int iy = 0; iy < nn; ++iy) {
+      for (int ix = 0; ix < nn; ++ix) {
+        const Eigen::Vector3d q(sp(0) - 5.0 + ix * res, sp(1) - 5.0 + iy * res, z);
+        int c = 0;
+        if (edt_environment_->sdf_map_->getInflateOccupancy(q) == 1)
+          c = edt_environment_->sdf_map_->getDynOnly(q) == 1 ? 2 : 1;
+        fputc('0' + c, f);
+      }
+      fputc('\n', f);
+    }
+  }
+  fclose(f);
+}
+
+int KinodynamicAstar::searchImpl(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, Eigen::Vector3d start_a,
+                                 Eigen::Vector3d end_pt, Eigen::Vector3d end_v, bool init, bool dynamic,
+                                 double time_start)
+{
+  zlo_ = std::min(z_min_, start_pt(2) - 0.05);   // [CD2 21/10]
+  zhi_ = std::max(z_max_, start_pt(2) + 0.05);
   start_vel_ = start_v;
   start_acc_ = start_a;
 
@@ -81,6 +150,7 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
   open_set_.push(cur_node);
   use_node_num_ += 1;
 
+  cur_node->time = 0.0;   // [CD2 P3] thoi gian nut tinh tu diem xuat phat (che do 'dynamic' ghi de ben duoi)
   if (dynamic)
   {
     time_origin_ = time_start;
@@ -92,6 +162,9 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
   else
     expanded_nodes_.insert(cur_node->index, cur_node);
 
+  t_node0_ = cur_node->time;   // [CD2 P3]
+  dyn_start_d_ = dyn_time_ ? edt_environment_->sdf_map_->dynPredMinDist(start_pt, t_base_) : 1e9;   // [CD2 P3]
+  dyn_escape_ = dyn_time_ && start_escape_ > 0.0 && dyn_start_d_ < dyn_margin_;
   PathNodePtr neighbor = NULL;
   PathNodePtr terminate_node = NULL;
   bool init_search = init;
@@ -123,6 +196,7 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
       {
         // Check whether shot traj exist
         estimateHeuristic(cur_node->state, end_state, time_to_goal);
+        shot_t0_ = cur_node->time - t_node0_;   // [CD2 P3]
         computeShotTraj(cur_node->state, end_state, time_to_goal);
         if (init_search)
           ROS_ERROR("Shot in first search loop!");
@@ -163,6 +237,8 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
     open_set_.pop();
     cur_node->node_state = IN_CLOSE_SET;
     iter_num_ += 1;
+    DbgNode dn{cur_node->state.head(3), cur_node->state.tail(3), cur_node->g_score, cur_node->f_score,
+               cur_node->time, 0, 0, 0, 0, 0, 0};   // [CD2 21/10] log chan doan
 
     double res = 1 / 2.0, time_res = 1 / 1.0, time_res_init = 1 / 20.0;
     Eigen::Matrix<double, 6, 1> cur_state = cur_node->state;
@@ -210,6 +286,7 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
         PathNodePtr pro_node = dynamic ? expanded_nodes_.find(pro_id, pro_t_id) : expanded_nodes_.find(pro_id);
         if (pro_node != NULL && pro_node->node_state == IN_CLOSE_SET)
         {
+          ++dn.r_close;
           if (init_search)
             std::cout << "close" << std::endl;
           continue;
@@ -219,6 +296,7 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
         Eigen::Vector3d pro_v = pro_state.tail(3);
         if (fabs(pro_v(0)) > max_vel_ || fabs(pro_v(1)) > max_vel_ || fabs(pro_v(2)) > max_vel_)
         {
+          ++dn.r_vel;
           if (init_search)
             std::cout << "vel" << std::endl;
           continue;
@@ -229,6 +307,7 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
         int diff_time = pro_t_id - cur_node->time_idx;
         if (diff.norm() == 0 && ((!dynamic) || diff_time == 0))
         {
+          ++dn.r_same;
           if (init_search)
             std::cout << "same" << std::endl;
           continue;
@@ -237,20 +316,27 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
         // Check safety
         Eigen::Vector3d pos;
         Eigen::Matrix<double, 6, 1> xt;
-        bool is_occ = false;
+        bool is_occ = false, by_dyn = false;   // [CD2 P3] by_dyn: bi loai do vat can dong theo thoi gian
         for (int k = 1; k <= check_num_; ++k)
         {
           double dt = tau * double(k) / double(check_num_);
           stateTransit(cur_state, xt, um, dt);
           pos = xt.head(3);
-          if (occupiedForSearch(pos))   // [CD2] co bong bong thoat
+          if (pos(2) < zlo_ || pos(2) > zhi_ || occupiedForSearch(pos))   // [CD2] bong bong thoat + dai do cao
           {
             is_occ = true;
+            break;
+          }
+          if (dynHit(pos, cur_node->time - t_node0_ + dt))   // [CD2 P3] vat can dong tai dung thoi diem
+          {
+            is_occ = true;
+            by_dyn = true;
             break;
           }
         }
         if (is_occ)
         {
+          if (by_dyn || edt_environment_->sdf_map_->getDynOnly(pos) == 1) ++dn.r_dyn; else ++dn.r_static;
           if (init_search)
             std::cout << "safe" << std::endl;
           continue;
@@ -275,8 +361,7 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
               expand_node->state = pro_state;
               expand_node->input = um;
               expand_node->duration = tau;
-              if (dynamic)
-                expand_node->time = cur_node->time + tau;
+              expand_node->time = cur_node->time + tau;   // [CD2 P3] ca khi khong 'dynamic'
             }
             break;
           }
@@ -296,11 +381,9 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
             pro_node->duration = tau;
             pro_node->parent = cur_node;
             pro_node->node_state = IN_OPEN_SET;
+            pro_node->time = cur_node->time + tau;   // [CD2 P3] ca khi khong 'dynamic'
             if (dynamic)
-            {
-              pro_node->time = cur_node->time + tau;
               pro_node->time_idx = timeToIndex(pro_node->time);
-            }
             open_set_.push(pro_node);
 
             if (dynamic)
@@ -309,6 +392,7 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
               expanded_nodes_.insert(pro_id, pro_node);
 
             tmp_expand_nodes.push_back(pro_node);
+            ++dn.add;
 
             use_node_num_ += 1;
             if (use_node_num_ == allocate_num_)
@@ -328,8 +412,7 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
               pro_node->input = um;
               pro_node->duration = tau;
               pro_node->parent = cur_node;
-              if (dynamic)
-                pro_node->time = cur_node->time + tau;
+              pro_node->time = cur_node->time + tau;   // [CD2 P3]
             }
           }
           else
@@ -338,6 +421,7 @@ int KinodynamicAstar::search(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, 
           }
         }
       }
+    if (!debug_dir_.empty()) dbg_nodes_.push_back(dn);   // [CD2 21/10]
     // init_search = false;
   }
 
@@ -361,6 +445,14 @@ void KinodynamicAstar::setParam(ros::NodeHandle& nh)
   nh.param("search/allocate_num", allocate_num_, -1);
   nh.param("search/check_num", check_num_, -1);
   nh.param("search/start_escape", start_escape_, 0.0);   // [CD2] 0 = tat
+  start_escape_default_ = start_escape_;
+  nh.param("search/debug_dir", debug_dir_, std::string(""));   // [CD2 21/10] rong = tat
+  nh.param("search/z_min", z_min_, -1e5);   // [CD2 21/10]
+  nh.param("search/dyn_time", dyn_time_, false);     // [CD2 P3] false = ban goc
+  nh.param("search/dyn_margin", dyn_margin_, 0.3);   // [CD2 P3]
+  nh.param("search/dyn_escape_floor", dyn_escape_floor_, 0.0);   // [CD2 P3 26/10] 0 = nhu cu (chi can ngoai than)
+  nh.param("search/dyn_tmax", dyn_tmax_, 3.0);       // [CD2 P3]
+  nh.param("search/z_max", z_max_, 1e5);    // [CD2 21/10]
   nh.param("search/max_search_time", max_search_time_, -1.0);   // [CD2 Indoor] <= 0 = tat
   escape_active_ = false;
   nh.param("search/optimistic", optimistic_, true);
@@ -481,6 +573,8 @@ bool KinodynamicAstar::computeShotTraj(Eigen::VectorXd state1, Eigen::VectorXd s
     // if (edt_environment_->evaluateCoarseEDT(coord, -1.0) <= margin_) {
     //   return false;
     // }
+    if (coord(2) < zlo_ || coord(2) > zhi_) return false;   // [CD2 21/10] dai do cao
+    if (dynHit(coord, shot_t0_ + time)) return false;          // [CD2 P3]
     if (occupiedForSearch(coord))   // [CD2] co bong bong thoat
     {
       return false;

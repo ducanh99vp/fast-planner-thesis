@@ -73,6 +73,10 @@ vector<Eigen::Vector4d> spawn_boxes;
    thieu truc = -1 = theo quy tac xen ke chung. Trong hanh lang vat can di DOC hanh lang:
    neu di ngang thi no bat qua bat lai giua hai vach nhu can gat nuoc (khong thuc te). */
 vector<int> spawn_axis;
+/* [CD2 19/10] Truong thu 6 (tuy chon) "x0,x1,y0,y1,truc,n": vung nay nhan CO DINH n vat can dau
+   tien (theo thu tu vung), de dat duoc vd 1 vat can sat tuong + 1 vat can giua hanh lang.
+   Vat can con lai (hoac khong vung nao co n) van chon vung ngau nhien theo dien tich. */
+vector<int> spawn_count;
 unordered_set<long> static_vox; // tap o luoi bi chiem boi vat can tinh
 bool   map_ready  = false;
 bool   objs_ready = false;   // [CD2] chua dat xong vat can thi chua duoc cap nhat
@@ -184,10 +188,11 @@ int main(int argc, char** argv) {
     std::string item;
     while (std::getline(ss, item, ';')) {
       double a, b, c, d;
-      int ax = -1;
-      if (sscanf(item.c_str(), "%lf,%lf,%lf,%lf,%d", &a, &b, &c, &d, &ax) >= 4) {
+      int ax = -1, cnt = 0;
+      if (sscanf(item.c_str(), "%lf,%lf,%lf,%lf,%d,%d", &a, &b, &c, &d, &ax, &cnt) >= 4) {
         spawn_boxes.push_back(Eigen::Vector4d(a, b, c, d));
         spawn_axis.push_back(ax);
+        spawn_count.push_back(cnt);   // [CD2 19/10]
       }
     }
     if (!spawn_boxes.empty()) ROS_INFO("[dynamic]: %lu vung sinh vat can", (unsigned long)spawn_boxes.size());
@@ -268,11 +273,25 @@ int main(int argc, char** argv) {
     Eigen::Vector3d pos;
     Eigen::Vector3d probe = scale + Eigen::Vector3d(0.6, 0.6, 0.0);
     int box_axis = -1;   // [CD2 Indoor] truc cua vung duoc chon
+    int q_fix = -1;      // [CD2 19/10] vung co dinh cho vat can i (truong thu 6), -1 = ngau nhien
+    for (int q = 0, cum = 0; q < (int)spawn_count.size(); ++q) {
+      cum += spawn_count[q];
+      if (i < cum) { q_fix = q; break; }
+    }
     for (int tryk = 0; tryk < 200; ++tryk) {
       if (spawn_boxes.empty()) {
         pos = Eigen::Vector3d(rand_px(eng), rand_py(eng), 0.5 * scale(2));
       } else {
         /* [CD2 Indoor] chon vung theo dien tich roi rut deu trong vung */
+        if (q_fix >= 0) {   // [CD2 19/10] vung co dinh
+          const Eigen::Vector4d& b = spawn_boxes[q_fix];
+          box_axis = spawn_axis[q_fix];
+          pos = Eigen::Vector3d(uniform_real_distribution<double>(b(0), b(1))(eng),
+                                uniform_real_distribution<double>(b(2), b(3))(eng), 0.5 * scale(2));
+          if (!hitStatic(pos, probe)) break;
+          if (tryk == 199) ROS_WARN("[dynamic]: vat can %d khong tim duoc cho dat trong, dat tam", i);
+          continue;
+        }
         double tong = 0.0;
         for (const auto& bx : spawn_boxes) tong += (bx(1) - bx(0)) * (bx(3) - bx(2));
         double u = uniform_real_distribution<double>(0.0, tong)(eng);

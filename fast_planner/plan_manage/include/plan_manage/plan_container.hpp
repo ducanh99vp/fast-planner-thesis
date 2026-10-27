@@ -194,6 +194,10 @@ struct PlanParameters {
   double clearance_;
   int dynamic_;
   double dyn_check_horizon_ = -1.0;   // [CD2] huong B; < 0 = tat
+  /* [CD2 P3] vat can dong theo thoi gian: f_d trong bo toi uu, phep kiem 20 Hz theo thoi gian,
+     chot khoang ho tinh sau toi uu (M5: f_d co the day quy dao vao tuong). Mac dinh tat. */
+  bool   dyn_cost_ = false, dyn_check_time_ = false;
+  double dyn_check_margin_ = 0.2, dyn_check_tmax_ = 1.5, dyn_static_min_ = 0.05;
   /* [CD2] Huong mui (planYaw). 0 = goc; 1 = sua loi quan goc; 2 = 1 + giu huong khi
      UAV gan dung yen (quang di trong forward_t < yaw_hold_dist_) */
   int    yaw_mode_      = 0;

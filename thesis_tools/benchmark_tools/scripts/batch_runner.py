@@ -40,6 +40,9 @@ MAPS = {
     "I1": dict(pcd="I1", size=(16.0, 11.0, 4.5), start=(-6.0, 0.0), goals=[(6.0, 0.0)]),
     "I3": dict(pcd="I3", size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),
     "I3G": dict(pcd="I3", size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),  # [CD2] can gat nuoc
+    "I3T": dict(pcd="I3", size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),  # [CD2 19/10] vat can sat tuong trai
+    "I3T2": dict(pcd="I3", size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),  # [CD2 26/10] 2 hang: trai + giua
+    "I3T2B": dict(pcd="I3", size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),  # [CD2 26/10] 2 hang nhe: 2 trai + 2 giua
     # I4: mot ban do, ba tuyen bay qua ba o cua rong khac nhau.
     #   R1 qua cua A 1.4 m, R2 qua cua C 1.2 m, R3 qua cua D 0.9 m (hep nhat)
     "I4-R1": dict(pcd="I4", size=(26.0, 16.0, 4.5), start=(-10.0, -5.0), goals=[(10.0, -5.0)]),
@@ -72,6 +75,15 @@ DYN_INDOOR = {
     # thi bat qua lai giua hai vach ~2.5 s/lan nhu can gat nuoc — giu lai lam kich ban kho rieng I3G.
     "I3":    dict(num=4, xy=(10.0, 10.0), spawn="-6.5,6.5,-9.6,-7.4,0;7.4,9.6,-6.5,6.5,1"),
     "I3G":   dict(num=4, xy=(10.0, 10.0), spawn="-6.5,6.5,-9.6,-7.4;7.4,9.6,-6.5,6.5"),
+    # [CD2 19/10] I3T: ca 4 vat can di doc hanh lang DUOI, sat tuong TRAI (phia dich, y = -7.0): tam y ~ -7.45
+    # -> khe trai 0.15-0.2 m, khong lot duoc; ben phai trong ~2.2 m. Thu UAV co biet lach sang phai.
+    "I3T":   dict(num=4, xy=(10.0, 10.0), spawn="-6.5,6.5,-7.5,-7.4,0"),
+    # [CD2 26/10] I3T2 (nguoi dung yeu cau): them 1 HANG giua hanh lang. 4 vat can sat tuong trai (y ~ -7.45)
+    # + 3 vat can giua (y ~ -8.5), deu chay doc truc x. Khe giua hai hang ~0.45 m (khong lot);
+    # loi con lai: sat mep phai (~1.2 m) hoac cho hang giua di qua.
+    "I3T2":  dict(num=7, xy=(10.0, 10.0), spawn="-6.5,6.5,-7.5,-7.4,0,4;-6.5,6.5,-8.6,-8.4,0,3"),
+    # [CD2 26/10] I3T2B (nguoi dung): ban nhe cua I3T2 — 2 vat can sat tuong trai + 2 vat can giua hanh lang
+    "I3T2B": dict(num=4, xy=(10.0, 10.0), spawn="-6.5,6.5,-7.5,-7.4,0,2;-6.5,6.5,-8.6,-8.4,0,2"),
     "I4-R1": dict(num=6, xy=(12.5, 7.5), spawn="-8,-1,-7,-1;1,8,-7,-1;-8,-1,1,7;1,8,1,7"),
     "I4-R2": dict(num=6, xy=(12.5, 7.5), spawn="-8,-1,-7,-1;1,8,-7,-1;-8,-1,1,7;1,8,1,7"),
     "I4-R3": dict(num=6, xy=(12.5, 7.5), spawn="-8,-1,-7,-1;1,8,-7,-1;-8,-1,1,7;1,8,1,7"),
@@ -122,8 +134,93 @@ CONFIGS = {
                   "astar_max_time:=0.08", "replan_latency:=0.2"],
     # === P2HC: P2 hoan chinh cho Indoor === SW15I2EAB + sua loi quan goc huong mui (yaw_mode 1;
     # nguoi dung thay UAV "lieng vong" o I3 khi chua bat).
+    # [16/10] tat tran ao trong nha (virtual_ceil -1): chi dung san/tran THAT nhu CD1 (M3B/TN2);
+    # truoc do tran ao 2.5 tu bat vi applyVirtualBounds chay ca nhanh dam may diem.
     "P2HC": ["dyn_sweep_T:=1.5", "inflation:=0.2", "dyn_sweep_inflate:=0.099", "start_escape:=0.6",
-             "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=1"],
+             "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=1", "virtual_ceil:=-1.0"],
+    # [CD2 16/10] P2HC + (1) FSM khong bo dich khi quy dao het truoc dich (loi goc M5)
+    # + (2) vet quet phinh 0.2 = vung phinh tinh = nguong va cham (truoc 0.099: quy dao "trong" van suot
+    # 0.13-0.18 m) + (3) yaw_mode 2 giu mui khi bay cham (I1 hat 20: quay mui khi cham 366 -> 9 do)
+    "P2HC2": ["dyn_sweep_T:=1.5", "inflation:=0.2", "dyn_sweep_inflate:=0.2", "start_escape:=0.6",
+              "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+              "goal_retry:=true"],
+    # [CD2 16/10] P2HC2 + goal_retry tra lai dich THAT (dich bi vet quet de chi doi TAM) + ne ngang
+    # khoi vet quet phia truoc vat can dang lao toi (cach mep 0.25 m)
+    "P2HC3": ["dyn_sweep_T:=1.5", "inflation:=0.2", "dyn_sweep_inflate:=0.2", "start_escape:=0.6",
+              "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+              "goal_retry:=true", "dyn_dodge:=0.25"],
+    # [CD2 17/10] tham so GIONG HET P2HC2 nhung chay tren ma da co tra lai dich that (goal_true_);
+    # = P2HC3 bo ne ngang -> tach rieng loi ich cua tra dich
+    "P2HC2T": ["dyn_sweep_T:=1.5", "inflation:=0.2", "dyn_sweep_inflate:=0.2", "start_escape:=0.6",
+               "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+               "goal_retry:=true"],
+    # [CD2 21/10] TN2 + P2 + dai do cao: dan duong toan cuc CD1 (tri nho + A* toan cuc + dich tam), duong
+    # toan cuc va tam nhin BO QUA vet quet (dich tam xa doc hanh lang), dich tam roi vao vet quet thi doi
+    # tien doc duong; A* cuc bo chi bay z 0.5-2.0 m. Khoang ho A* toan cuc 0.1 vi phinh tinh da 0.2
+    # (tong 0.3 m, bang CD1: 0.099 + 0.2). Ly do: log A* I3T hat 2 — heuristic thang toi dich sau tuong
+    # lam A* khong xet nua phai hanh lang (0/2239 nut), lui va bay qua dau tru.
+    "TN2P2Z": ["dyn_sweep_T:=1.5", "inflation:=0.2", "dyn_sweep_inflate:=0.2", "start_escape:=0.6",
+               "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+               "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+               "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0"],
+    # [CD2 25/10] TN2P2Z + du doan biet tuong: duong du doan vat can cham vat can tinh thi phan xa
+    # (I4-R3 hat 1: hop bat lai o khung cua, vet quet thang xuyen tuong -> UAV vao cua -> cham)
+    "TN2P2ZR": ["dyn_sweep_T:=1.5", "inflation:=0.2", "dyn_sweep_inflate:=0.2", "start_escape:=0.6",
+                "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+                "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+                "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true"],
+    # [CD2 25/10] TN2P2ZR + P5 toi thieu: lap ke hoach that bai ma quy dao cu sap cham vung bi chiem thi
+    # phanh deu dung lai thay vi bay tiep (I4-R3 hat 1: 2.6 s that bai lien tuc, quy dao cu dua vao cua -> cham)
+    "TN2P2ZRS": ["dyn_sweep_T:=1.5", "inflation:=0.2", "dyn_sweep_inflate:=0.2", "start_escape:=0.6",
+                 "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+                 "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+                 "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+                 "stop_on_fail:=true"],
+    # [CD2 P3] TN2 + P3 (vat can dong THEO THOI GIAN: A* loai nut cach vat can du doan tai t < 0.3 m, f_d
+    # trong bo toi uu, phep kiem 20 Hz theo thoi gian) + du doan biet tuong + dai do cao. TAT vet quet
+    # (dyn_sweep_T -1): ban do chi con vat can tinh. Giu tra dich, chong giat, giu mui.
+    "TN2P3": ["dyn_sweep_T:=-1.0", "inflation:=0.2", "start_escape:=0.6",
+              "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+              "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+              "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+              "p3:=true"],
+    # [CD2 P3L] TN2P3 + duong toan cuc co chi phi MEM theo du doan vat can dong (lan sap dong dat x5) -> dich tam
+    # chon lan trong (I3T2 hat 2: dich tam TN2 nam lan trai dong -> UAV bi kep giua 2 lan -> cham)
+    "TN2P3L": ["dyn_sweep_T:=-1.0", "inflation:=0.2", "start_escape:=0.6",
+               "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+               "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+               "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+               "p3:=true", "guide_dyn_soft:=4.0"],
+    # [CD2 P3 26/10] TN2P3L + du doan hai vat can dong DUNG NHAU (I3T2B hat 2: hop lan giua dung tru di nguoc
+    # chieu, bat nguoc vao UAV dang bam sau lung no; du doan cu chi biet bat o vat can tinh)
+    "TN2P3LD": ["dyn_sweep_T:=-1.0", "inflation:=0.2", "start_escape:=0.6",
+                "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+                "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+                "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+                "p3:=true", "guide_dyn_soft:=4.0", "dyn_pair:=true"],
+    # [CD2 P3 26/10] TN2P3LD + bien phep kiem 20 Hz 0.3 m (0.2 = dung bang nguong sach -> I3T2B hat 2 chui khe
+    # 0.45 m giua tru lan trai va hop lan giua, suot 0.19)
+    "TN2P3LDM": ["dyn_sweep_T:=-1.0", "inflation:=0.2", "start_escape:=0.6",
+                 "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+                 "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+                 "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+                 "p3:=true", "guide_dyn_soft:=4.0", "dyn_pair:=true", "p3_check_margin:=0.3"],
+    # [CD2 P3 26/10] TN2P3LDM + bong bong thoat khong cho lai gan vat can hon min(luc xuat phat, 0.2 m)
+    # (I4-R2 hat 7: xuat phat cach tru 0.29 m, duong ban toi dich cat mui tru 0.11 m nam tron trong bong bong)
+    "TN2P3LDMB": ["dyn_sweep_T:=-1.0", "inflation:=0.2", "start_escape:=0.6",
+                  "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+                  "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+                  "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+                  "p3:=true", "guide_dyn_soft:=4.0", "dyn_pair:=true", "p3_check_margin:=0.3",
+                  "p3_escape_floor:=0.2"],
+    # [CD2 P3 27/10] TN2P3LDM + doi dich TAM theo du doan P3 khi vat can dong sap quet qua dich (KHONG kem
+    # bong bong chat cua TN2P3LDMB: no doi va cham lay nghieng 45 do). I4-R2 hat 7: tru di ngang dich.
+    "TN2P3LDMG": ["dyn_sweep_T:=-1.0", "inflation:=0.2", "start_escape:=0.6",
+                  "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+                  "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+                  "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+                  "p3:=true", "guide_dyn_soft:=4.0", "dyn_pair:=true", "p3_check_margin:=0.3",
+                  "goal_dyn:=3.0"],
     # SW15 + huong B: phep kiem va cham 20 Hz BO QUA diem qua 1.5 s toi neu diem do
     # CHI cham vet quet (khong co vat can that trong 0.15 m) -> bot lap lai [SAFETY]
     "SW15H": ["dyn_sweep_T:=1.5", "dyn_check_horizon:=1.5"],

@@ -133,12 +133,40 @@ class KinodynamicAstar {
      start_escape_ quanh diem xuat phat thi bo qua kiem va chach, de A* tim duoc
      duong DI RA. Chi bat khi diem xuat phat thuc su bi chiem. */
   double start_escape_;
+  double start_escape_default_ = 0.0;   // [CD2] gia tri tham so, de tra lai sau khi ne
   bool   escape_active_;
   /* [CD2 Indoor] Gioi han thoi gian moi lan tim (s); <= 0 = khong gioi han (ban goc).
      Trong nha, khi vet quet chan ngang hanh lang, A* vet can khong gian toi 0.5-0.8 s. */
   double max_search_time_;
   Eigen::Vector3d search_start_;
   bool occupiedForSearch(const Eigen::Vector3d& pos);
+  /* [CD2 21/10] Ghi log chan doan: search/debug_dir khac rong -> moi lan tim ghi mot tep: trang
+     thai xuat phat, ket qua, duong tim duoc, MOI nut da duyet kem so buoc bi loai theo ly do,
+     va lat cat ban do quanh diem xuat phat. Rong = tat (ban goc). */
+  /* [CD2 21/10] Dai do cao cho A* cuc bo (mac dinh tat). Noi ra cho chua do cao xuat phat, neu khong
+     UAV dang o ngoai dai thi moi nut deu bi loai. Chan bay qua dau vat can tru + bot khong gian tim. */
+  double z_min_ = -1e5, z_max_ = 1e5, zlo_ = -1e5, zhi_ = 1e5;
+  /* [CD2 P3] Kiem vat can dong THEO THOI GIAN: nut o thoi diem t (tinh tu diem xuat phat) bi loai neu
+     cach vat can du doan TAI t duoi dyn_margin_. Chi xet t <= dyn_tmax_. t_base_ = thoi gian tuyet doi
+     cua diem xuat phat (planner dat truoc moi lan tim). */
+  bool   dyn_time_ = false;
+  double dyn_margin_ = 0.3, dyn_tmax_ = 3.0, t_base_ = 0.0, t_node0_ = 0.0, shot_t0_ = 0.0;
+  bool   dynHit(const Eigen::Vector3d& pos, double t_rel);
+  bool   dyn_escape_ = false;   // [CD2 P3] bong bong chi bat khi DIEM XUAT PHAT da trong bien vat can
+  double dyn_start_d_ = 1e9;    // [CD2 P3 26/10] khoang cach diem xuat phat toi vat can du doan
+  double dyn_escape_floor_ = 0.0;   // [CD2 P3 26/10] trong bong bong khong lai gan hon min(dyn_start_d_, nguong nay)
+  std::string debug_dir_;
+  int debug_count_ = 0;
+  struct DbgNode {
+    Eigen::Vector3d p, v;
+    double g, f, t;
+    int add, r_close, r_vel, r_same, r_dyn, r_static;
+  };
+  std::vector<DbgNode> dbg_nodes_;
+  int searchImpl(Eigen::Vector3d start_pt, Eigen::Vector3d start_v, Eigen::Vector3d start_a,
+                 Eigen::Vector3d end_pt, Eigen::Vector3d end_v, bool init, bool dynamic, double time_start);
+  void dumpSearch(int ket_qua, const Eigen::Vector3d& sp, const Eigen::Vector3d& sv,
+                  const Eigen::Vector3d& sa, const Eigen::Vector3d& ep, bool init);
   double tie_breaker_;
   bool optimistic_;
 
@@ -181,6 +209,13 @@ class KinodynamicAstar {
              double time_start = -1.0);
 
   void setEnvironment(const EDTEnvironment::Ptr& env);
+  void setTimeBase(double t_abs) { t_base_ = t_abs; }   // [CD2 P3]
+  /* [CD2] r > 0: bong bong thoat tam thoi max(r, tham so) (duong ne ngang dai hon 0.6 m);
+     r <= 0: tra lai tham so. */
+  void setStartEscape(double r) {
+    start_escape_ = (r > 0.0 && start_escape_default_ > 0.0) ? std::max(r, start_escape_default_)
+                                                             : start_escape_default_;
+  }
 
   std::vector<Eigen::Vector3d> getKinoTraj(double delta_t);
 

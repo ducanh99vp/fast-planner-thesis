@@ -83,6 +83,9 @@ void SDFMap::initMap(ros::NodeHandle& nh) {
      inflate < 0 = dung lai obstacles_inflation_ cua vat can tinh. */
   node_.param("sdf_map/dyn_sweep_T", mp_.dyn_sweep_T_, -1.0);
   node_.param("sdf_map/dyn_sweep_inflate", mp_.dyn_sweep_inflate_, -1.0);
+  node_.param("sdf_map/dyn_reflect", mp_.dyn_reflect_, false);   // [CD2 25/10] false = thang (nhu P2)
+  node_.param("sdf_map/dyn_pred_T", mp_.dyn_pred_T_, -1.0);      // [CD2 P3] <= 0 = tat
+  node_.param("sdf_map/dyn_pred_pair", mp_.dyn_pred_pair_, false);   // [CD2 P3 26/10]
   /* [CD1] Ban do co tri nho. false = ban goc: moi chu ky xoa hop cuc bo roi chi chen diem dang thay. */
   node_.param("sdf_map/keep_memory", mp_.keep_memory_, false);
 
@@ -161,7 +164,7 @@ void SDFMap::initMap(ros::NodeHandle& nh) {
 
   indep_cloud_sub_ =
       node_.subscribe<sensor_msgs::PointCloud2>("/sdf_map/cloud", 10, &SDFMap::cloudCallback, this);
-  if (mp_.dyn_sweep_T_ >= 0.0)   // [CD2] P2
+  if (mp_.dyn_sweep_T_ >= 0.0 || mp_.dyn_pred_T_ > 0.0)   // [CD2] P2 / P3
     dyn_obj_sub_ = node_.subscribe("/dynamic/obj", 50, &SDFMap::dynObjCallback, this);
   indep_odom_sub_ =
       node_.subscribe<nav_msgs::Odometry>("/sdf_map/odom", 10, &SDFMap::odomCallback, this);
@@ -822,6 +825,186 @@ bool SDFMap::nearRealOccupied(const Eigen::Vector3d& pos, double r) {
   return false;
 }
 
+/* [CD2] NE NGANG. Vet quet ghi vao luoi chiem dung mat thong tin vat can di huong nao: khi
+ * UAV da lot vao phan PHIA TRUOC cua vet quet, ESDF day UAV ra mep gan nhat — thuong la mep
+ * truoc, tuc chay truoc mui vat can (do 16/10: I1 hat 5 phanh/lui ngay tren lan vat can, I3
+ * hat 1 bo chay dong chieu roi bi duoi kip). Ham nay tra ve diem ne q: dich VUONG GOC voi
+ * huong di cua vat can, ra ngoai vet quet them margin. Chon phia UAV dang lech sang (giua
+ * lan thi phia dich); phia do vuong tuong / vet quet khac thi thu phia kia.
+ * Chi xet vat can dang LAO TOI p trong dyn_sweep_T_ giay (p o phia truoc, trong be ngang). */
+bool SDFMap::dodgePoint(const Eigen::Vector3d& p, const Eigen::Vector3d& goal, double margin,
+                        Eigen::Vector3d& q) {
+  if (mp_.dyn_sweep_T_ < 0.0 || dyn_objs_.empty()) return false;
+  const double tnow = ros::Time::now().toSec();
+  const double infl = (mp_.dyn_sweep_inflate_ >= 0.0) ? mp_.dyn_sweep_inflate_
+                                                      : mp_.obstacles_inflation_;
+  double best_tc = 1e9;
+  bool   found   = false;
+  for (const auto& kv : dyn_objs_) {
+    const DynObjState& o = kv.second;
+    if (tnow - o.t > 0.5 || !o.has_v) continue;
+    const Eigen::Vector2d v  = o.v.head<2>();
+    const double          sp = v.norm();
+    if (sp < 0.1) continue;
+    const Eigen::Vector2d u = v / sp, n(-u(1), u(0));
+    const Eigen::Vector2d r = p.head<2>() - o.c.head<2>();
+    const double w = 0.5 * std::max(o.scale(0), o.scale(1)) + infl;   // nua be ngang vet quet
+    const double a = r.dot(u), s = r.dot(n);
+    if (a < 0.0 || a > sp * mp_.dyn_sweep_T_ + w || std::abs(s) > w) continue;
+    if (p(2) < o.c(2) - 0.5 * o.scale(2) - infl || p(2) > o.c(2) + 0.5 * o.scale(2) + infl) continue;
+    const double tc = a / sp;   // vat can toi sau bao lau
+    if (tc >= best_tc) continue;
+    double sg = std::abs(s) > 0.05 ? (s > 0.0 ? 1.0 : -1.0)
+                                   : ((goal.head<2>() - p.head<2>()).dot(n) >= 0.0 ? 1.0 : -1.0);
+    for (int k = 0; k < 2; ++k, sg = -sg) {
+      Eigen::Vector3d c = p;
+      c.head<2>() += (sg * (w + margin) - s) * n;
+      if (!isInMap(c) || getInflateOccupancy(c) == 1 || nearRealOccupied(c, 0.15)) continue;
+      bool ok = true;   // doan p -> c khong cat vat can that
+      for (double f = 0.1; f < 1.0 + 1e-6 && ok; f += 0.1)
+        if (nearRealOccupied(p + f * (c - p), 0.1)) ok = false;
+      if (!ok) continue;
+      q = c; best_tc = tc; found = true;
+      break;
+    }
+  }
+  return found;
+}
+
+bool SDFMap::footHitsStatic(const DynObjState& o, const Eigen::Vector3d& c) {
+  const double inf = mp_.obstacles_inflation_;
+  const double ox = std::max(0.05, 0.5 * o.scale(0) - inf), oy = std::max(0.05, 0.5 * o.scale(1) - inf);
+  const double orr = std::max(0.05, 0.5 * o.scale(0) - inf);
+  for (double x = c(0) - ox; x <= c(0) + ox + 1e-9; x += 0.5 * mp_.resolution_)
+    for (double y = c(1) - oy; y <= c(1) + oy + 1e-9; y += 0.5 * mp_.resolution_) {
+      if (o.type == 3 && (x - c(0)) * (x - c(0)) + (y - c(1)) * (y - c(1)) > orr * orr) continue;
+      const Eigen::Vector3d q(x, y, c(2));
+      if (getInflateOccupancy(q) == 1 && getDynOnly(q) == 0) return true;
+    }
+  return false;
+}
+
+/* [CD2 P3] Bo dem du doan theo thoi gian. Moi vat can: vi tri moi 0.05 s tu luc quan sat cuoi
+   toi (bay gio + dyn_pred_T_), van toc ngang khong doi, phan xa khi than cham vat can tinh
+   (cung quy tac voi vet quet, footHitsStatic), toi da 2 lan; ket hai phia thi dung yen.
+   [CD2 P3 26/10] dyn_pred_pair_: hai vat can dong DUNG NHAU (hop bao chong len, nhu
+   LinearObjModel::collide cua obj_generator) thi ca hai dao chieu tren truc lun it nhat, chi khi
+   chung dang lai gan nhau (khong dao di dao lai khi con chong), toi da 2 lan moi vat can.
+   I3T2B hat 2: hop lan giua dung tru di nguoc chieu, bat nguoc vao UAV dang bam sau lung no.
+   De so cap duoc, moi vat can dung chung moc t0 = luc quan sat cu nhat (lech nhau vai ms). */
+void SDFMap::updateDynPred() {
+  dyn_pred_.clear();
+  if (mp_.dyn_pred_T_ <= 0.0 || dyn_objs_.empty()) return;
+  const double tnow = ros::Time::now().toSec(), dt = 0.05;
+  struct St {
+    const DynObjState* o;
+    int id, n_px, n_pair;
+    Eigen::Vector3d c, v;
+  };
+  std::vector<St> st;
+  double t0 = tnow;
+  for (const auto& kv : dyn_objs_)
+    if (tnow - kv.second.t <= 0.5) t0 = std::min(t0, kv.second.t);
+  for (const auto& kv : dyn_objs_) {
+    const DynObjState& o = kv.second;
+    if (tnow - o.t > 0.5) continue;
+    const Eigen::Vector3d v = o.has_v ? Eigen::Vector3d(o.v(0), o.v(1), 0.0) : Eigen::Vector3d::Zero();
+    st.push_back(St{&o, kv.first, 0, 0, o.c + v * (t0 - o.t), v});
+    DynPred p;
+    p.t0 = t0; p.dt = dt; p.type = o.type; p.half = 0.5 * o.scale;
+    p.c.push_back(st.back().c);
+    dyn_pred_.push_back(p);
+  }
+  const int n = (int)std::ceil(((tnow - t0) + mp_.dyn_pred_T_) / dt);
+  std::vector<Eigen::Vector3d> prev(st.size());
+  for (int k = 1; k <= n; ++k) {
+    for (size_t i = 0; i < st.size(); ++i) {
+      St& s = st[i];
+      prev[i] = s.c;
+      Eigen::Vector3d nx = s.c + s.v * dt;
+      if (mp_.dyn_reflect_ && s.v.norm() > 1e-3 && footHitsStatic(*s.o, nx)) {
+        if (s.n_px < 2) {
+          ROS_INFO_THROTTLE(0.5, "[CD2 P3] du doan theo thoi gian: vat can %d cham vat can tinh tai (%.2f, %.2f) sau %.2f s -> phan xa",
+                            s.id, nx(0), nx(1), k * dt - (tnow - t0));
+          ++s.n_px; s.v = -s.v; nx = s.c + s.v * dt;
+          if (footHitsStatic(*s.o, nx)) nx = s.c;
+        } else {
+          nx = s.c;
+        }
+      }
+      s.c = nx;
+    }
+    if (mp_.dyn_pred_pair_)
+      for (size_t i = 0; i < st.size(); ++i)
+        for (size_t j = i + 1; j < st.size(); ++j) {
+          St &a = st[i], &b = st[j];
+          const Eigen::Vector3d d = b.c - a.c;
+          const Eigen::Vector3d tol = 0.5 * (a.o->scale + b.o->scale) - d.cwiseAbs();
+          if (tol.minCoeff() <= 0.0) continue;
+          int m;
+          tol.minCoeff(&m);
+          if (d(m) * (b.v(m) - a.v(m)) >= 0.0) continue;   // dang ra xa nhau: da dao roi
+          if (a.n_pair >= 2 || b.n_pair >= 2) continue;
+          ROS_INFO_THROTTLE(0.5, "[CD2 P3] du doan theo thoi gian: vat can %d va %d dung nhau tai (%.2f, %.2f) sau %.2f s -> ca hai dao chieu",
+                            a.id, b.id, 0.5 * (a.c(0) + b.c(0)), 0.5 * (a.c(1) + b.c(1)), k * dt - (tnow - t0));
+          a.v(m) = -a.v(m); b.v(m) = -b.v(m);
+          a.c = prev[i]; b.c = prev[j];
+          ++a.n_pair; ++b.n_pair;
+        }
+    for (size_t i = 0; i < st.size(); ++i) dyn_pred_[i].c.push_back(st[i].c);
+  }
+}
+
+bool SDFMap::dynPredAt(int i, double t_abs, Eigen::Vector3d& c, Eigen::Vector3d& half, int& type) const {
+  if (i < 0 || i >= (int)dyn_pred_.size()) return false;
+  const DynPred& p = dyn_pred_[i];
+  const double s = std::max(0.0, (t_abs - p.t0) / p.dt);
+  const int k = std::min((int)p.c.size() - 1, (int)std::floor(s));
+  const double u = (k + 1 < (int)p.c.size()) ? s - k : 0.0;
+  c = (k + 1 < (int)p.c.size()) ? Eigen::Vector3d((1.0 - u) * p.c[k] + u * p.c[k + 1]) : p.c.back();
+  half = p.half; type = p.type;
+  return true;
+}
+
+/* Khoang cach CO DAU tu p toi mat vat can i tai t_abs (am = ben trong); hop: hop thang truc; tru:
+   ban kinh half.x trong mat phang + chieu cao half.z. grad: dao ham theo p (huong ra xa). */
+double SDFMap::dynPredDist(int i, const Eigen::Vector3d& p, double t_abs, Eigen::Vector3d* grad) const {
+  Eigen::Vector3d c, h;
+  int type;
+  if (!dynPredAt(i, t_abs, c, h, type)) return 1e9;
+  const Eigen::Vector3d d = p - c;
+  if (type == 3) {
+    const double rxy = d.head<2>().norm();
+    const double qr = rxy - h(0), qz = std::abs(d(2)) - h(2);
+    const double out = std::sqrt(std::pow(std::max(qr, 0.0), 2) + std::pow(std::max(qz, 0.0), 2));
+    const double dist = out + std::min(std::max(qr, qz), 0.0);
+    if (grad) {
+      const Eigen::Vector3d er = rxy > 1e-6 ? Eigen::Vector3d(d(0) / rxy, d(1) / rxy, 0.0) : Eigen::Vector3d(1, 0, 0);
+      const Eigen::Vector3d ez(0, 0, d(2) >= 0.0 ? 1.0 : -1.0);
+      if (out > 1e-9) *grad = (std::max(qr, 0.0) * er + std::max(qz, 0.0) * ez) / out;
+      else *grad = (qr > qz) ? er : ez;
+    }
+    return dist;
+  }
+  const Eigen::Vector3d q = d.cwiseAbs() - h;
+  const Eigen::Vector3d qp = q.cwiseMax(0.0);
+  const double out = qp.norm();
+  int m; q.maxCoeff(&m);
+  const double dist = out + std::min(q(m), 0.0);
+  if (grad) {
+    Eigen::Vector3d sg(d(0) >= 0 ? 1 : -1, d(1) >= 0 ? 1 : -1, d(2) >= 0 ? 1 : -1);
+    if (out > 1e-9) *grad = sg.cwiseProduct(qp) / out;
+    else { grad->setZero(); (*grad)(m) = sg(m); }
+  }
+  return dist;
+}
+
+double SDFMap::dynPredMinDist(const Eigen::Vector3d& p, double t_abs) const {
+  double dmin = 1e9;
+  for (int i = 0; i < (int)dyn_pred_.size(); ++i) dmin = std::min(dmin, dynPredDist(i, p, t_abs));
+  return dmin;
+}
+
 void SDFMap::markDynSweep() {
   if (mp_.dyn_sweep_T_ < 0.0 || dyn_objs_.empty()) return;
   const double tnow = ros::Time::now().toSec();
@@ -843,10 +1026,44 @@ void SDFMap::markDynSweep() {
     const double z0 = o.c(2) - 0.5 * o.scale(2) - infl, z1 = o.c(2) + 0.5 * o.scale(2) + infl;
     const int nstep = std::max(1, (int)std::ceil(d.head<2>().norm() / mp_.resolution_));
 
+    /* [CD2 25/10] Du doan biet tuong. Van toc khong doi dua vet quet XUYEN tuong (I4-R3 hat 1:
+       hop di vao khung cua D, vet quet ke tiep sang phong ben kia, UAV vao cua dung luc hop bat
+       nguoc lai -> cham). Neu bat dyn_reflect_: di tung buoc do phan giai doc duong du doan; than
+       vat can (DUNG kich thuoc, chua phinh) cham o vat can tinh (luoi CHUA phinh, de vat can chay
+       sat tuong khong bi phan xa nham) thi dao chieu nhu obj_generator, ve tiep phan thoi gian
+       con lai. Toi da 2 lan phan xa; ket ca hai phia thi dung. */
+    std::vector<Eigen::Vector3d> tam;                      // cac vi tri tam can ve
+    if (mp_.dyn_reflect_ && o.has_v && d.head<2>().norm() > 1e-3) {
+      /* Nhanh dam may diem (mo phong) CHI ghi luoi DA PHINH, luoi chua phinh (getOccupancy) luon
+         trong -> ban dau (25/10) phan xa khong bao gio chay. Dung luoi da phinh nhung THU NHO than
+         vat can dung bang do phinh: than thu nho cham vung phinh <=> than that cham tuong (vat can
+         chay doc cach tuong 0.15 m nhu I3T khong bi phan xa nham). Bo qua o chi do vet quet. */
+      auto cham_tinh = [&](const Eigen::Vector3d& c) { return footHitsStatic(o, c); };
+      Eigen::Vector3d u = Eigen::Vector3d(d(0), d(1), 0.0).normalized(), cs = o.c;
+      double con = d.head<2>().norm();
+      int n_px = 0;
+      tam.push_back(cs);
+      while (con > 1e-6) {
+        const double ds = std::min(mp_.resolution_, con);
+        Eigen::Vector3d nx = cs + u * ds;
+        if (cham_tinh(nx)) {
+          if (++n_px > 2) break;
+          ROS_INFO_THROTTLE(1.0, "[CD2] du doan vat can %d cham vat can tinh tai (%.2f, %.2f) -> phan xa", kv.first, nx(0), nx(1));
+          u = -u;
+          nx = cs + u * ds;
+          if (cham_tinh(nx)) break;
+        }
+        cs = nx;
+        con -= ds;
+        tam.push_back(cs);
+      }
+    } else {
+      for (int k = 0; k <= nstep; ++k) tam.push_back(o.c + d * (double(k) / nstep));
+    }
+
     std::unordered_set<long> cols;                         // o (ix, iy) bi chiem
     Eigen::Vector3i id;
-    for (int k = 0; k <= nstep; ++k) {
-      const Eigen::Vector3d cs = o.c + d * (double(k) / nstep);
+    for (const Eigen::Vector3d& cs : tam) {
       for (double x = cs(0) - hx; x <= cs(0) + hx + 1e-9; x += mp_.resolution_)
         for (double y = cs(1) - hy; y <= cs(1) + hy + 1e-9; y += mp_.resolution_) {
           if (o.type == 3 && (x - cs(0)) * (x - cs(0)) + (y - cs(1)) * (y - cs(1)) > rr * rr) continue;
@@ -890,6 +1107,7 @@ void SDFMap::markDynSweep() {
  * Do la ly do ghi chu M3 ket luan "tran ao khong hieu luc nen P2 == P0".
  * Tach ra day de goi duoc tu ca hai nhanh. */
 void SDFMap::applyVirtualBounds() {
+  updateDynPred();  // [CD2 P3] truoc vet quet: chi doc vat can TINH (vet quet chu ky truoc da duoc xoa)
   markDynSweep();   // [CD2] P2 — truoc san/tran vi no co the noi rong local_bound_
   // San ao: danh dau MOI o tu day ban do len toi virtual_floor_height_.
   // Khac tran ao (chi mot lop): mot lop don o duoi de bi lot qua.

@@ -138,9 +138,18 @@ private:
   double margin_;
   bool use_occ_;        // [CD1] kiem va cham tren luoi chiem dung (co tri nho) thay vi ESDF cuc bo
   double clearance_;    // [CD1] khoang ho toi o chiem dung khi use_occ_
+  bool ignore_dyn_ = false;   // [CD2 21/10] o CHI do vet quet vat can dong coi la trong (duong toan cuc chi theo vat can tinh)
   double z_min_, z_max_;   // [CD1] dai do cao duoc phep cua duong toan cuc
   double z_weight_;        // [CD1] he so chi phi buoc theo phuong dung (>= 1)
   double soft_clearance_, soft_weight_;     // [CD1] o gan tuong hon soft_clearance_ thi buoc dat gap (1 + soft_weight_)
+  /* [CD2 P3L] Chi phi MEM theo du doan vat can dong (P3): o ma UAV toi luc t_arr ~ |p - xuat phat| / dyn_soft_v_
+     va vat can du doan (trong cua so t_arr +- 1 s) cach duoi dyn_soft_r_ thi buoc dat gap (1 + dyn_soft_w_).
+     Chi xet t_arr <= dyn_soft_tmax_. Duong toan cuc vi vay chon LAN TRONG. 0 = tat. */
+  double dyn_soft_w_ = 0.0, dyn_soft_r_ = 0.5, dyn_soft_v_ = 1.0, dyn_soft_tmax_ = 3.0, t_base_ = 0.0;
+  Eigen::Vector3d s_start_;
+ public:
+  int n_dyn_pen_ = 0;   // [CD2 P3L] so buoc bi phat o lan tim gan nhat (chan doan)
+ private:
   bool occFree(const Eigen::Vector3d& p, double r);   // [CD1]
   int allocate_num_;
   double tie_breaker_;
@@ -170,6 +179,7 @@ public:
   void init();
   bool pointFree(const Eigen::Vector3d& p) { return occFree(p, clearance_); }   // [CD1]
   void reset();
+  void setTimeBase(double t_abs) { t_base_ = t_abs; }   // [CD2 P3L]
   int search(Eigen::Vector3d start_pt, Eigen::Vector3d end_pt, bool dynamic = false,
              double time_start = -1.0);
 

@@ -28,6 +28,8 @@ F=${F:--0.05}          # san ao (m): -0.05 = mat dat that, chan vung duoi z = 0
 Z=${Z:-0.5}            # do cao bay (cat canh + dich)
 YM=${YM:-1}            # huong mui: 0 = ban goc (co loi quan goc -> xoay vong vo co), 1 = da sua
 TMO=${TMO:-70}         # gioi han moi luot (giay)
+# EXTRA: tham so roslaunch them, vd P2 hoan chinh (SW15I2E):
+#   T=1.5 EXTRA="inflation:=0.2 dyn_sweep_inflate:=0.099 start_escape:=0.6" ./quan_sat.sh 3
 OUT=/tmp/quan_sat.csv  # ghi ra /tmp, khong lan vao results/
 
 if ! rostopic list >/dev/null 2>&1; then
@@ -46,6 +48,7 @@ for ((k = 0; k < N; k++)); do
     init_x:=-19.0 init_y:=0.0 init_z:=0.0 takeoff_height:=$Z goal_z:=$Z \
     max_vel:=1.5 max_acc:=1.5 p_num:=$P c_num:=$C p_hmin:=$H \
     dyn_obs:=1 dyn_num:=$DYN dyn_seed:=$SEED dyn_xy_y:=$Y dyn_sweep_T:=$T virtual_floor:=$F yaw_mode:=$YM \
+    ${EXTRA:-} \
     out_csv:=$OUT enc_csv:=/tmp/quan_sat_enc.csv 2>&1 \
     | grep --line-buffered -E "Cham tran voi vat can dong|Kết thúc|VA CHẠM" \
     | sed -u 's/\x1b\[[0-9;]*m//g; s/^.*\[metric_logger\] /    /'
