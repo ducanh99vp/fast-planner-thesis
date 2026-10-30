@@ -100,6 +100,20 @@ void KinoReplanFSM::waypointCallback(const nav_msgs::PathConstPtr& msg) {
     current_wp_ = (current_wp_ + 1) % waypoint_num_;
   }
 
+  /* [CD2 30/10] Dich NGOAI ban do (chay tay ngoai troi: dich (-9.37, -10.82) trong khi ban do chi toi
+     y = -10): duong toan cuc that bai, UAV bay ra ngoai mep roi KET VINH VIEN (diem xuat phat ngoai ban
+     do -> A* hong ngay buoc dau, lap lai ~70 lan/s). Keo dich vao trong ban do, cach mep >= 1 m. */
+  {
+    Eigen::Vector3d ori, size;
+    planner_manager_->edt_environment_->sdf_map_->getRegion(ori, size);
+    const Eigen::Vector3d dich_goc = end_pt_;
+    for (int i = 0; i < 2; ++i)
+      end_pt_(i) = min(max(end_pt_(i), ori(i) + 1.0), ori(i) + size(i) - 1.0);
+    if ((end_pt_ - dich_goc).norm() > 1e-6)
+      ROS_WARN("[CD2] dich (%.2f, %.2f) ngoai hoac sat mep ban do -> keo vao (%.2f, %.2f)",
+               dich_goc(0), dich_goc(1), end_pt_(0), end_pt_(1));
+  }
+
   visualization_->drawGoal(end_pt_, 0.3, Eigen::Vector4d(1, 0, 0, 1.0));
   end_vel_.setZero();
   have_target_ = true;

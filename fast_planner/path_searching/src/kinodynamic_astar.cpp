@@ -122,8 +122,13 @@ int KinodynamicAstar::searchImpl(Eigen::Vector3d start_pt, Eigen::Vector3d start
                                  Eigen::Vector3d end_pt, Eigen::Vector3d end_v, bool init, bool dynamic,
                                  double time_start)
 {
-  zlo_ = std::min(z_min_, start_pt(2) - 0.05);   // [CD2 21/10]
-  zhi_ = std::max(z_max_, start_pt(2) + 0.05);
+  /* [CD2 21/10] Dai do cao, noi ra de chua do cao xuat phat. [30/10] Noi them QUANG PHANH theo van
+     toc dung: truoc chi +-0.05 m, UAV da o 2.35 m (tren tran dai 2.0) ma con dang len 0.46 m/s -> moi
+     buoc dau deu vuot zhi_ -> A* that bai 22 lan lien tiep, UAV bay tiep quy dao cu roi doi huong dot
+     ngot (chay tay ngoai troi). Voi quang phanh, buoc phanh -max_acc_ luon nam trong dai. */
+  const double vz_len = std::max(0.0, start_v(2)), vz_xuong = std::max(0.0, -start_v(2));
+  zlo_ = std::min(z_min_, start_pt(2) - 0.05 - vz_xuong * vz_xuong / (2.0 * max_acc_));
+  zhi_ = std::max(z_max_, start_pt(2) + 0.05 + vz_len * vz_len / (2.0 * max_acc_));
   start_vel_ = start_v;
   start_acc_ = start_a;
 

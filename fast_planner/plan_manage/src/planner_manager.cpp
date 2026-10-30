@@ -796,8 +796,13 @@ void FastPlannerManager::planYaw(const Eigen::Vector3d& start_yaw) {
   Eigen::Vector3d end_v = local_data_.velocity_traj_.evaluateDeBoorT(duration - 0.1);
   Eigen::Vector3d end_yaw(atan2(end_v(1), end_v(0)), 0, 0);
   // [CD2] che do 2: van toc cuoi ~0 (toi dich, dung lai) thi atan2 chi la nhieu
-  if (pp_.yaw_mode_ >= 2 && end_v.head<2>().norm() < 0.3) end_yaw(0) = last_yaw;
-  calcNextYaw(last_yaw, end_yaw(0));
+  /* [CD2 30/10] last_yaw da CONG DON (khong nam trong [-pi, pi]); calcNextYaw chi dung voi goc trong
+     [-pi, pi] nen cong them (k - 1) vong khi |last_yaw| > 3*pi -> chay tay qua lai 40 phut, goc cuoi
+     quy dao 257.6 -> 509.4 rad, UAV xoay 40 vong truoc dich, nghieng 76 do. Giu mui thi dung thang. */
+  if (pp_.yaw_mode_ >= 2 && end_v.head<2>().norm() < 0.3)
+    end_yaw(0) = last_yaw;
+  else
+    calcNextYaw(last_yaw, end_yaw(0));
   yaw.block(seg_num, 0, 3, 1) = states2pts * end_yaw;
 
   // solve
