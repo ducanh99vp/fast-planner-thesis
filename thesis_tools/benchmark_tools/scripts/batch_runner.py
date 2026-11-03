@@ -43,13 +43,18 @@ MAPS = {
     "I3T": dict(pcd="I3", size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),  # [CD2 19/10] vat can sat tuong trai
     "I3T2": dict(pcd="I3", size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),  # [CD2 26/10] 2 hang: trai + giua
     "I3T2B": dict(pcd="I3", size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),  # [CD2 26/10] 2 hang nhe: 2 trai + 2 giua
+    "I3T5": dict(pcd="I3", size=(21.0, 21.0, 4.5), start=(-8.5, -8.5), goals=[(8.5, 8.5)]),  # [CD2 02/11] I3T2 thua hon: 3 trai + 2 giua
     # I4: mot ban do, ba tuyen bay qua ba o cua rong khac nhau.
     #   R1 qua cua A 1.4 m, R2 qua cua C 1.2 m, R3 qua cua D 0.9 m (hep nhat)
     "I4-R1": dict(pcd="I4", size=(26.0, 16.0, 4.5), start=(-10.0, -5.0), goals=[(10.0, -5.0)]),
     "I4-R2": dict(pcd="I4", size=(26.0, 16.0, 4.5), start=(-10.0, -5.0), goals=[(-10.0, 5.0)]),
     "I4-R3": dict(pcd="I4", size=(26.0, 16.0, 4.5), start=(10.0, -5.0), goals=[(10.0, 5.0)]),
+    "I4D-R1": dict(pcd="I4", size=(26.0, 16.0, 4.5), start=(-10.0, -5.0), goals=[(10.0, -5.0)]),  # [CD2 02/11] I4 day: moi phong 5 vat can
+    "I4D-R2": dict(pcd="I4", size=(26.0, 16.0, 4.5), start=(-10.0, -5.0), goals=[(-10.0, 5.0)]),  # [CD2 02/11] I4 day: moi phong 5 vat can
+    "I4D-R3": dict(pcd="I4", size=(26.0, 16.0, 4.5), start=(10.0, -5.0), goals=[(10.0, 5.0)]),  # [CD2 02/11] I4 day: moi phong 5 vat can
     # I5: ngo cut chu U kin toi tran, mieng quay ve xuat phat — cuc tieu dia phuong
     "I5": dict(pcd="I5", size=(21.0, 16.0, 4.5), start=(-8.0, 0.0), goals=[(8.0, 0.0)]),
+    "I5D": dict(pcd="I5", size=(21.0, 16.0, 4.5), start=(-8.0, 0.0), goals=[(8.0, 0.0)]),  # [CD2 02/11] I5 6 vat can dong
     # [CD2] Ban do NGOAI TROI cua HKUST (random_forest). pcd=None => use_pcd:=false.
     #   60 cot vuong CAO 3 m (khong bay vuot duoc) + 10 vanh tron.
     #   Vat can dong don vao hanh lang |y| <= 3 m quanh duong bay y = 0
@@ -84,10 +89,23 @@ DYN_INDOOR = {
     "I3T2":  dict(num=7, xy=(10.0, 10.0), spawn="-6.5,6.5,-7.5,-7.4,0,4;-6.5,6.5,-8.6,-8.4,0,3"),
     # [CD2 26/10] I3T2B (nguoi dung): ban nhe cua I3T2 — 2 vat can sat tuong trai + 2 vat can giua hanh lang
     "I3T2B": dict(num=4, xy=(10.0, 10.0), spawn="-6.5,6.5,-7.5,-7.4,0,2;-6.5,6.5,-8.6,-8.4,0,2"),
+    # [CD2 02/11] I3T5 (nguoi dung): I3T2 (7 vat can) qua day so voi hanh lang 3 m -> 5 vat can: 3 sat tuong
+    # trai + 2 giua. Hinh dang xen ke theo thu tu (chan = hop, le = tru) -> 3 hop + 2 tru:
+    # lan trai hop-tru-hop, lan giua tru-hop.
+    "I3T5":  dict(num=5, xy=(10.0, 10.0), spawn="-6.5,6.5,-7.5,-7.4,0,3;-6.5,6.5,-8.6,-8.4,0,2"),
     "I4-R1": dict(num=6, xy=(12.5, 7.5), spawn="-8,-1,-7,-1;1,8,-7,-1;-8,-1,1,7;1,8,1,7"),
     "I4-R2": dict(num=6, xy=(12.5, 7.5), spawn="-8,-1,-7,-1;1,8,-7,-1;-8,-1,1,7;1,8,1,7"),
     "I4-R3": dict(num=6, xy=(12.5, 7.5), spawn="-8,-1,-7,-1;1,8,-7,-1;-8,-1,1,7;1,8,1,7"),
+    # [CD2 02/11] I4D (nguoi dung): moi phong du 5 vat can = tinh + dong. Tay Nam 2 tinh -> 3 dong, Dong Nam
+    # 3 tinh -> 2 dong, Tay Bac / Dong Bac 2 tinh (1 khoi + 1 ban thap 0.75 m) -> 3 dong; tong 11 (I4 cu: 6).
+    # Truong thu 6 = so vat can co dinh cua vung; truc -1 = quy tac chung. Hinh xen ke -> 6 hop + 5 tru.
+    "I4D-R1": dict(num=11, xy=(12.5, 7.5), spawn="-8,-1,-7,-1,-1,3;1,8,-7,-1,-1,2;-8,-1,1,7,-1,3;1,8,1,7,-1,3"),
+    "I4D-R2": dict(num=11, xy=(12.5, 7.5), spawn="-8,-1,-7,-1,-1,3;1,8,-7,-1,-1,2;-8,-1,1,7,-1,3;1,8,1,7,-1,3"),
+    "I4D-R3": dict(num=11, xy=(12.5, 7.5), spawn="-8,-1,-7,-1,-1,3;1,8,-7,-1,-1,2;-8,-1,1,7,-1,3;1,8,1,7,-1,3"),
     "I5":    dict(num=4, xy=(10.0, 7.5), spawn="-6,1,4.8,7;-6,1,-7,-4.8;3,6.5,-7,7"),
+    # [CD2 02/11] I5D (nguoi dung): 6 vat can dong, CO DINH 2 moi vung: hanh lang tren + duoi (chay doc truc x),
+    # vung sau chu U (chay doc truc y) -> khong bat qua lai giua hai vach hep. Hinh xen ke -> 3 hop + 3 tru.
+    "I5D":   dict(num=6, xy=(10.0, 7.5), spawn="-6,1,4.8,7,0,2;-6,1,-7,-4.8,0,2;3,6.5,-7,7,1,2"),
 }
 
 # Tham so bay chung cho moi ban do
