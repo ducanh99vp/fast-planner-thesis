@@ -775,10 +775,14 @@ void SDFMap::clearAndInflateLocalMap() {
 
 /* [CD2] P2 ---------------------------------------------------------------
  * Moi message /dynamic/obj la MOT vat can. Luu tam, kich thuoc, loai, va uoc
- * luong van toc bang sai phan giua hai lan nhan (lam tron nhe). Day la thong tin
- * "vi tri + van toc" — chua phai bo du doan gi phuc tap. */
+ * luong van toc bang sai phan giua hai tin (lam tron nhe). Day la thong tin
+ * "vi tri + van toc" — chua phai bo du doan gi phuc tap.
+ * [CD2 03/11] Moc thoi gian = GIO GUI (header.stamp), khong phai gio nhan. Planner chay 1 luong: khi dang
+ * lap ke hoach, tin don lai roi duoc doc lien mot luot -> hai tin cung vat can gui cach 33 ms nhung doc cach
+ * ~0.3 ms -> van toc vot 60-260 m/s (do 03/11: 24 vat can ~200 lan/luot; 8 vat can 0 lan vi loc dt > 1e-4
+ * che duoc). Tin khong co stamp thi dung gio nhan nhu cu. */
 void SDFMap::dynObjCallback(const visualization_msgs::MarkerConstPtr& msg) {
-  const double t = ros::Time::now().toSec();
+  const double t = msg->header.stamp.isZero() ? ros::Time::now().toSec() : msg->header.stamp.toSec();
   const Eigen::Vector3d c(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
   const Eigen::Vector3d sc(msg->scale.x, msg->scale.y, msg->scale.z);
   auto it = dyn_objs_.find(msg->id);
@@ -788,6 +792,7 @@ void SDFMap::dynObjCallback(const visualization_msgs::MarkerConstPtr& msg) {
   }
   DynObjState& o = it->second;
   const double dt = t - o.t;
+  if (dt < 0.0) return;   // [CD2 03/11] tin cu hon tin da doc: bo
   if (dt > 1e-4) {
     const Eigen::Vector3d v = (c - o.c) / dt;
     o.v = o.has_v ? Eigen::Vector3d(0.6 * o.v + 0.4 * v) : v;
