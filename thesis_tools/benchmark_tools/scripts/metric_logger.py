@@ -150,7 +150,7 @@ class MetricLogger(object):
         self.t_tilt15    = -1e9
         self.timeout    = float(rospy.get_param("~timeout", 120.0))
         self.goal_tol   = float(rospy.get_param("~goal_tol", 0.6))
-        self.uav_radius = float(rospy.get_param("~uav_radius", 0.2))
+        self.uav_radius = float(rospy.get_param("~uav_radius", 0.267))   # [05/11] 0.2 -> 0.267 (ban kinh mo hinh UAV)
         self.goal_delay = float(rospy.get_param("~goal_delay", 4.0))
         # [Luan van - M3] do cao cat canh (<= 0: tat); truoc khi cat canh xong khong xet va cham
         self.takeoff_h  = float(rospy.get_param("~takeoff_height", -1.0))

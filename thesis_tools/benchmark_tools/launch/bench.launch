@@ -196,7 +196,8 @@
     <param name="goal_y"     value="$(arg goal_y)"/>
     <param name="timeout"    value="$(arg timeout)"/>
     <param name="goal_tol"   value="0.6"/>
-    <param name="uav_radius" value="0.2"/>
+    <!-- [05/11] 0.2 (quy uoc M2) -> 0.267 = nua be rong mo hinh UAV trong bo mo phong (mesh +-0.267, arm_length 0.26) -->
+    <param name="uav_radius" value="0.267"/>
     <!-- Chờ bấy nhiêu giây sau khi bản đồ và odometry sẵn sàng rồi mới
          phát đích. Để hệ thống ổn định, tránh đo cả giai đoạn khởi động. -->
     <param name="goal_delay" value="4.0"/>

@@ -261,6 +261,13 @@ CONFIGS = {
     # 0.5-2.0 m, dich tam = diem xa nhat nhin thay duoc trong 6 m theo duong).
     "TN": ["virtual_ceil:=-1.0", "keep_memory:=true", "global_guide:=true"],
     "TN2": ["virtual_ceil:=-1.0", "keep_memory:=true", "global_guide:=true"],   # = TN, chi doi nhan: do bang ma 15/10 (lap lai truoc khi het quy dao + dich tam khuat gan); TN trong cd1_tn_20261014.csv la ma 14/10
+    # [04/11] TN2 + vung phinh tuong 0.2 m (mac dinh 0.099). Nguong va chay doi 0.2 -> 0.267 m (ban kinh mo hinh UAV):
+    # TN2 con 109/120 (I4-R3 5/20, I5 6/20 sat tuong 0.21-0.26 m); cac cau hinh CD2 phinh 0.2 giu >= 0.31 m o cung tuong.
+    "TN2I2": ["virtual_ceil:=-1.0", "keep_memory:=true", "global_guide:=true", "inflation:=0.2"],
+    # [05/11] TN2I2 120/120 an toan nhung I4-R3 di vong 40 m (14 m): phinh 0.2 + khoang ho A* toan cuc 0.2 = 0.4 m
+    # moi ben chan han cua D 0.90 m. Ha khoang ho 0.1 nhu cac cau hinh CD2 (khe con 0.19 m, bang TN2).
+    "TN2I2C": ["virtual_ceil:=-1.0", "keep_memory:=true", "global_guide:=true", "inflation:=0.2",
+               "guide_clearance:=0.1"],
 
 
 }

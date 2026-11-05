@@ -21,7 +21,7 @@ import sys
 from scipy import stats
 
 L_REF = 38.0
-UAV_RADIUS = 0.2
+UAV_RADIUS = 0.267   # [05/11] 0.2 -> 0.267 (ban kinh mo hinh UAV)
 
 
 def doc(path):
