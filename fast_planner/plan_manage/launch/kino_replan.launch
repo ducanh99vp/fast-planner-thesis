@@ -54,6 +54,7 @@
   <arg name="goal_dyn" default="0.0"/>             <!-- [CD2 P3 27/10] -->
   <arg name="p3_lambda" default="5.0"/>
   <arg name="p3_d0" default="0.5"/>
+  <arg name="p3_tdyn" default="1.5"/>   <!-- [CD2 04/11] -->
   <arg name="p3_margin" default="0.3"/>
   <arg name="search_zmin" default="-100000.0"/>
   <arg name="search_zmax" default="100000.0"/>
@@ -157,6 +158,7 @@
     <arg name="goal_dyn" value="$(arg goal_dyn)"/>
     <arg name="p3_lambda" value="$(arg p3_lambda)"/>
     <arg name="p3_d0" value="$(arg p3_d0)"/>
+    <arg name="p3_tdyn" value="$(arg p3_tdyn)"/>
     <arg name="p3_margin" value="$(arg p3_margin)"/>
     <arg name="search_zmin" value="$(arg search_zmin)"/>
     <arg name="search_zmax" value="$(arg search_zmax)"/>

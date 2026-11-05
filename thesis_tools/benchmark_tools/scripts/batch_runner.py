@@ -239,6 +239,14 @@ CONFIGS = {
                   "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
                   "p3:=true", "guide_dyn_soft:=4.0", "dyn_pair:=true", "p3_check_margin:=0.3",
                   "goal_dyn:=3.0"],
+    # [CD2 04/11] TN2P3LDMG + bo toi uu nhin xa 3 s (bang A*, mac dinh 1.5). I3 hat 7: A* va phep kiem thay
+    # vat can tu 2.2 s truoc, f_d chi thay 1.5 s -> phan ung tre, het kip vong sang ben rong.
+    "TN2P3LDMGT3": ["dyn_sweep_T:=-1.0", "inflation:=0.2", "start_escape:=0.6",
+                    "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+                    "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+                    "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+                    "p3:=true", "guide_dyn_soft:=4.0", "dyn_pair:=true", "p3_check_margin:=0.3",
+                    "goal_dyn:=3.0", "p3_tdyn:=3.0"],
     # SW15 + huong B: phep kiem va cham 20 Hz BO QUA diem qua 1.5 s toi neu diem do
     # CHI cham vet quet (khong co vat can that trong 0.15 m) -> bot lap lai [SAFETY]
     "SW15H": ["dyn_sweep_T:=1.5", "dyn_check_horizon:=1.5"],

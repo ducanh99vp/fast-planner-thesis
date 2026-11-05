@@ -188,12 +188,15 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
 
     case GEN_NEW_TRAJ: {
       LocalTrajData* info = &planner_manager_->local_data_;
-      if (replan_latency_ > 0.0 && info->traj_id_ > 0) {
+      /* [CD2 04/11] Quy dao cu da HET truoc luc ban giao thi UAV dang treo tai diem cuoi: lap tu odom.
+         Truoc day kep t = duration -> lay trang thai cuoi quy dao (con van toc) lam diem xuat phat mai
+         mai khong doi -> that bai lap lai den het gio (OUT hat 9 T3: 3866 lan, cach dich 0.94 m). */
+      const double t_ban_giao_rel = (ros::Time::now() - info->start_time_).toSec() + replan_latency_;
+      if (replan_latency_ > 0.0 && info->traj_id_ > 0 && t_ban_giao_rel < info->duration_) {
         /* [CD2 16/10] Lap lai sau that bai: lap tu trang thai LENH cua quy dao dang bay tai luc
            ban giao (giong REPLAN_TRAJ), khong tu odom voi gia toc 0 va moc = luc bat dau lap — hai
            thu do lam lenh nhay. Bao traj_server keo dai quy dao cu toi luc ban giao. */
-        double t = (ros::Time::now() - info->start_time_).toSec() + replan_latency_;
-        t        = min(max(t, 0.0), info->duration_);
+        const double t = max(t_ban_giao_rel, 0.0);
         start_pt_     = info->position_traj_.evaluateDeBoorT(t);
         start_vel_    = info->velocity_traj_.evaluateDeBoorT(t);
         start_acc_    = info->acceleration_traj_.evaluateDeBoorT(t);

@@ -54,6 +54,7 @@
   <arg name="goal_dyn" default="0.0"/>   <!-- [CD2 P3 27/10] cua so du doan (s) de doi dich tam khi vat can dong sap quet qua dich; 0 = tat -->
   <arg name="p3_lambda" default="5.0"/>
   <arg name="p3_d0" default="0.5"/>
+  <arg name="p3_tdyn" default="1.5"/>   <!-- [CD2 04/11] tam nhin f_d cua bo toi uu (s); A* nhin 3.0 -->
   <arg name="p3_margin" default="0.3"/>
   <arg name="search_zmin" default="-100000.0"/>
   <arg name="search_zmax" default="100000.0"/>
@@ -183,7 +184,7 @@
     <param name="search/dyn_tmax" value="3.0" type="double" if="$(arg p3)"/>
     <param name="optimization/lambda9" value="$(arg p3_lambda)" type="double" if="$(arg p3)"/>
     <param name="optimization/dist_dyn0" value="$(arg p3_d0)" type="double" if="$(arg p3)"/>
-    <param name="optimization/t_dyn_max" value="1.5" type="double" if="$(arg p3)"/>
+    <param name="optimization/t_dyn_max" value="$(arg p3_tdyn)" type="double" if="$(arg p3)"/>
     <param name="optimization/dyn_sample_dt" value="0.1" type="double" if="$(arg p3)"/>
     <param name="manager/dyn_cost" value="true" type="bool" if="$(arg p3)"/>
     <param name="manager/dyn_check_time" value="true" type="bool" if="$(arg p3)"/>
