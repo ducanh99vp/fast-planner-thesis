@@ -68,6 +68,9 @@ public:
   /* [CD2 Indoor] Neu khac 0: moc thoi gian (t = 0) cua quy dao sap lap. FSM dat bang thoi
      diem UAV se o trang thai xuat phat, de quy dao moi noi tiep quy dao cu dung luc. */
   ros::Time desired_start_time_;
+  /* [CD2 10/11] FSM dat true khi quy dao cu sap cham (phep kiem 20 Hz): A* that bai voi bien dyn_margin
+     thi thu lai voi bien nho dan (buoc 0.1) toi pp_.dyn_margin_em_ thay vi bao that bai. */
+  bool khan_cap_ = false;
   GlobalTrajData global_data_;
   MidPlanData plan_data_;
   EDTEnvironment::Ptr edt_environment_;

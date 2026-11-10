@@ -52,6 +52,12 @@ void FastPlannerManager::initPlanModules(ros::NodeHandle& nh) {
   nh.param("manager/dyn_check_margin", pp_.dyn_check_margin_, 0.2);
   nh.param("manager/dyn_check_tmax", pp_.dyn_check_tmax_, 1.5);
   nh.param("manager/dyn_static_min", pp_.dyn_static_min_, 0.05);
+  nh.param("manager/dyn_post_margin", pp_.dyn_post_margin_, -1.0);    // [CD2 06/11]
+  nh.param("manager/dyn_post_tmax", pp_.dyn_post_tmax_, 3.0);
+  nh.param("manager/dyn_post_static_min", pp_.dyn_post_static_min_, -1.0);   // [CD2 07/11]
+  nh.param("manager/dyn_post_wall", pp_.dyn_post_wall_, -1.0);               // [CD2 09/11]
+  nh.param("manager/dyn_post_tol", pp_.dyn_post_tol_, 0.0);                  // [CD2 09/11]
+  nh.param("manager/dyn_margin_em", pp_.dyn_margin_em_, -1.0);               // [CD2 10/11]
   nh.param("manager/yaw_mode", pp_.yaw_mode_, 0);
   nh.param("manager/yaw_hold_dist", pp_.yaw_hold_dist_, 1.0);
   nh.param("manager/clearance_threshold", pp_.clearance_, -1.0);
@@ -252,6 +258,22 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
     kino_path_finder_->reset();
     status = kino_path_finder_->search(start_pt, start_vel, start_acc, end_pt, end_vel, false);
 
+    /* [CD2 10/11] Khan cap (quy dao cu sap cham): bao that bai thi FSM bay tiep quy dao cu vao vat can
+       (OUT 18 f6: 15 lan that bai, -0.11 m). Noi bien vat can dong cua A* tung 0.1 m toi dyn_margin_em_;
+       duong tim duoc la diem dau cho bo toi uu (f_d) va P3H day ra xa them. */
+    if (status == KinodynamicAstar::NO_PATH && khan_cap_ && pp_.dyn_margin_em_ > 0.0) {
+      const double m0 = kino_path_finder_->getDynMargin();
+      for (double m = m0 - 0.1; m >= pp_.dyn_margin_em_ - 1e-6; m -= 0.1) {
+        kino_path_finder_->setDynMargin(m);
+        kino_path_finder_->reset();
+        status = kino_path_finder_->search(start_pt, start_vel, start_acc, end_pt, end_vel, false);
+        cout << "[CD2 khan] A* bien " << m << " m: " << (status == KinodynamicAstar::NO_PATH ? "that bai" : "co duong")
+             << endl;
+        if (status != KinodynamicAstar::NO_PATH) break;
+      }
+      kino_path_finder_->setDynMargin(m0);
+    }
+
     if (status == KinodynamicAstar::NO_PATH) {
       cout << "[kino replan]: Can't find path." << endl;
       /* [CD2] chan doan: diem xuat phat co nam TRONG vung cam khong? Neu co thi
@@ -305,16 +327,16 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
   /* [CD2 P3] Chot M5: f_d la chi phi mem, co the day quy dao vao vat can TINH (M5: dam tuong 6/6 khi bi
      don). Neu quy dao sau toi uu pham khoang ho tinh (ESDF < dyn_static_min_) thi giai lai voi f_d
      x0.5, x0.25, x0 — buoc cuoi bo han f_d nen luon con nghiem an toan voi vat can tinh. */
+  auto staticOk = [&](const Eigen::MatrixXd& cp) {
+    NonUniformBspline b(cp, 3, ts);
+    const double T = b.getTimeSum();
+    for (double t = 0.0; t <= T; t += 0.05) {
+      Eigen::Vector3d p = b.evaluateDeBoorT(t);
+      if (edt_environment_->evaluateCoarseEDT(p, -1.0) < pp_.dyn_static_min_) return false;
+    }
+    return true;
+  };
   if (pp_.dyn_cost_) {
-    auto staticOk = [&](const Eigen::MatrixXd& cp) {
-      NonUniformBspline b(cp, 3, ts);
-      const double T = b.getTimeSum();
-      for (double t = 0.0; t <= T; t += 0.05) {
-        Eigen::Vector3d p = b.evaluateDeBoorT(t);
-        if (edt_environment_->evaluateCoarseEDT(p, -1.0) < pp_.dyn_static_min_) return false;
-      }
-      return true;
-    };
     for (double sc : { 0.5, 0.25, 0.0 }) {
       if (staticOk(ctrl_pts)) break;
       cout << "[CD2 P3] f_d day quy dao vao vat can tinh -> giai lai voi f_d x" << sc << endl;
@@ -328,30 +350,117 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
 
   // iterative time adjustment
 
-  t1                    = ros::Time::now();
-  NonUniformBspline pos = NonUniformBspline(ctrl_pts, 3, ts);
+  t1 = ros::Time::now();
+  /* [CD2 06/11] Gian thoi gian cua ban goc, tach thanh ham de dung lai khi giai lai voi f_d manh hon. */
+  auto adjustTime = [&](const Eigen::MatrixXd& cp, double& ratio) {
+    NonUniformBspline b(cp, 3, ts);
+    const double      to = b.getTimeSum();
+    b.setPhysicalLimits(pp_.max_vel_, pp_.max_acc_);
+    bool feasible = b.checkFeasibility(false);
 
-  double to = pos.getTimeSum();
-  pos.setPhysicalLimits(pp_.max_vel_, pp_.max_acc_);
-  bool feasible = pos.checkFeasibility(false);
+    int iter_num = 0;
+    while (!feasible && ros::ok()) {
 
-  int iter_num = 0;
-  while (!feasible && ros::ok()) {
+      feasible = b.reallocateTime();
 
-    feasible = pos.reallocateTime();
+      if (++iter_num >= 3) break;
+    }
+    ratio = b.getTimeSum() / to;
+    return b;
+  };
+  double            ratio;
+  NonUniformBspline pos = adjustTime(ctrl_pts, ratio);
+  t_adjust              = (ros::Time::now() - t1).toSec();
 
-    if (++iter_num >= 3) break;
+  /* [CD2 06/11] Kiem CUNG ke hoach SAU khi gian thoi gian. f_d la chi phi mem (d0 0.5, lambda9 5 can bang o
+     ~0.22-0.25 m) va gian thoi gian lam lech them 0-8 cm, nen ke hoach phat ra co the da sat vat can dong
+     hon le cua chinh planner (04/11: ca 3 luot T3 < 0.267 m deu do ke hoach chi cach 0.21-0.25 m). Neu
+     khoang ho theo du doan trong dyn_post_tmax_ giay dau < dyn_post_margin_ thi giai lai tu nghiem A* voi
+     f_d x2, x4, x8 (bo ung vien pham khoang ho tinh). Khong ung vien nao dat thi giu ung vien xa vat can
+     nhat: van khong te hon ke hoach ban dau. */
+  if (pp_.dyn_cost_ && pp_.dyn_post_margin_ > 0.0) {
+    t1            = ros::Time::now();
+    auto dynClear = [&](NonUniformBspline& b) {
+      const double T = std::min(b.getTimeSum(), pp_.dyn_post_tmax_);
+      double       d = 1e9;
+      for (double t = 0.0; t <= T; t += 0.02) {
+        Eigen::Vector3d p = b.evaluateDeBoorT(t);
+        d = std::min(d, edt_environment_->sdf_map_->dynPredMinDist(p, new_start_time.toSec() + t));
+      }
+      return d;
+    };
+    /* [CD2 07/11, sua 09/11] Nguong toi thieu toi TUONG cho ung vien giai lai. I3 hat 9 (f5): f_d x8 day ke
+       hoach 0.5 m ve phia tuong, chinh ke hoach cach tuong that 0.263 m (< 0.267) ma van qua staticOk.
+       ESDF luong tu theo o 0.1 m (= 0.1*sqrt(n)): 0.1 = o ngay sat vung phinh = tuong that 0.2-0.4 m;
+       0.2 = >= 0.3 m. Nen staticOk ">= 0.05" chi chan vung phinh, va nguong 0.15 = cach vung phinh >= 2 o.
+       So TUNG THOI DIEM tren tham so thoi gian chung ts (truoc gian thoi gian, cung xuat phat ctrl_init):
+       ESDF_ung_vien(t) >= min(ESDF_ban_dau(t), dyn_post_static_min_) -> cho nao ke hoach ban dau cung sat
+       (qua cua, hanh lang) thi van cho, cho rong thi khong duoc keo vao tuong. (08/11: so min CA quy dao bi
+       vo hieu vi ke hoach ban dau hau nhu luon co mot diem 0.1.)
+       [09/11] dyn_post_wall_ > 0: do bang rawObstacleDist (m toi mat o chiem THAT) thay ESDF luong tu -
+       09/11 nguong ESDF 0.15 bo ca ung vien that ra cach tuong ~0.35 m (I4D-R1: dong tut 0.35 -> 0.28). */
+    const bool   do_that = pp_.dyn_post_wall_ > 0.0;
+    const double nguong  = do_that ? pp_.dyn_post_wall_ : pp_.dyn_post_static_min_;
+    auto staticProfile = [&](const Eigen::MatrixXd& cp) {
+      NonUniformBspline b(cp, 3, ts);
+      const double      T = b.getTimeSum();
+      vector<double>    s;
+      for (double t = 0.0; t <= T; t += 0.02) {
+        Eigen::Vector3d p = b.evaluateDeBoorT(t);
+        s.push_back(do_that ? edt_environment_->sdf_map_->rawObstacleDist(p, nguong + 0.1)
+                            : edt_environment_->evaluateCoarseEDT(p, -1.0));
+      }
+      return s;
+    };
+    auto minOf = [](const vector<double>& v) { return v.empty() ? -1.0 : *std::min_element(v.begin(), v.end()); };
+    double d_best = dynClear(pos);
+    if (d_best < pp_.dyn_post_margin_) {
+      const double   d_dau     = d_best;
+      double         sc_best   = 1.0;
+      const bool     co_nguong = nguong > 0.0;
+      vector<double> s0;
+      if (co_nguong) s0 = staticProfile(ctrl_pts);
+      double s_best = minOf(s0);
+      for (double sc : { 2.0, 4.0, 8.0 }) {
+        bspline_optimizers_[0]->setDynScale(sc);
+        Eigen::MatrixXd cp = bspline_optimizers_[0]->BsplineOptimizeTraj(ctrl_init, ts, cost_function, 1, 1);
+        if (!staticOk(cp)) {
+          cout << "[CD2 P3H] f_d x" << sc << " pham khoang ho tinh, bo" << endl;
+          continue;
+        }
+        vector<double> s1;
+        if (co_nguong) {
+          s1      = staticProfile(cp);
+          int bad = -1;
+          for (size_t i = 0; i < std::min(s0.size(), s1.size()); ++i)
+            if (s1[i] < std::min(s0[i] - pp_.dyn_post_tol_, nguong) - 1e-9) {
+              bad = int(i);
+              break;
+            }
+          if (bad >= 0) {
+            cout << "[CD2 P3H] f_d x" << sc << " sat tuong luc t=" << 0.02 * bad << " s (" << (do_that ? "that " : "ESDF ")
+                 << s1[bad] << " < min(ban dau " << s0[bad] << " - " << pp_.dyn_post_tol_ << ", " << nguong << ")), bo"
+                 << endl;
+            continue;
+          }
+        }
+        double            r;
+        NonUniformBspline b = adjustTime(cp, r);
+        const double      d = dynClear(b);
+        if (d > d_best) d_best = d, pos = b, ratio = r, sc_best = sc, s_best = minOf(s1);
+        if (d_best >= pp_.dyn_post_margin_) break;
+      }
+      bspline_optimizers_[0]->setDynScale(1.0);
+      cout << "[CD2 P3H] ke hoach cach vat can dong " << d_dau << " m < " << pp_.dyn_post_margin_
+           << " -> giai lai, chon f_d x" << sc_best << ": " << d_best << " m";
+      if (co_nguong) cout << " | " << (do_that ? "tuong that" : "ESDF tuong") << " nho nhat " << minOf(s0) << " -> " << s_best;
+      cout << endl;
+    }
+    t_opt += (ros::Time::now() - t1).toSec();   // giai lai tinh vao thoi gian toi uu (t_be)
   }
 
-  // pos.checkFeasibility(true);
-  // cout << "[Main]: iter num: " << iter_num << endl;
-
-  double tn = pos.getTimeSum();
-
-  cout << "[kino replan]: Reallocate ratio: " << tn / to << endl;
-  if (tn / to > 3.0) ROS_ERROR("reallocate error.");
-
-  t_adjust = (ros::Time::now() - t1).toSec();
+  cout << "[kino replan]: Reallocate ratio: " << ratio << endl;
+  if (ratio > 3.0) ROS_ERROR("reallocate error.");
 
   // save planned results
 

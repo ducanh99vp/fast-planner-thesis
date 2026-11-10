@@ -198,6 +198,23 @@ struct PlanParameters {
      chot khoang ho tinh sau toi uu (M5: f_d co the day quy dao vao tuong). Mac dinh tat. */
   bool   dyn_cost_ = false, dyn_check_time_ = false;
   double dyn_check_margin_ = 0.2, dyn_check_tmax_ = 1.5, dyn_static_min_ = 0.05;
+  /* [CD2 06/11] kiem cung quy dao sau khi gian thoi gian (khoang ho du doan trong dyn_post_tmax_ giay);
+     < 0 = tat */
+  double dyn_post_margin_ = -1.0, dyn_post_tmax_ = 3.0;
+  /* [CD2 07/11, sua 09/11] nguong toi thieu toi tuong (ESDF, m) cho ung vien giai lai cua P3H: tai MOI
+     thoi diem, ESDF ung vien >= min(ESDF ke hoach ban dau, dyn_post_static_min_). ESDF luong tu 0.1*sqrt(n)
+     tren ban do da phinh: 0.15 = cach vung phinh >= 2 o (~ >= 0.3 m tuong that voi inflation 0.2).
+     < 0 = tat (chi con staticOk, ESDF >= dyn_static_min_) */
+  double dyn_post_static_min_ = -1.0;
+  /* [CD2 09/11] nhu tren nhung do bang rawObstacleDist (m toi o chiem THAT, khong luong tu ESDF). > 0 thi
+     thay cho dyn_post_static_min_. < 0 = tat */
+  double dyn_post_wall_ = -1.0;
+  /* [CD2 09/11] dung sai khi so voi ke hoach ban dau: ung vien bi bo khi < min(ban dau - tol, nguong).
+     T3HC bo ung vien vi kem ban dau 0.00004 m o dau quy dao (hai quy dao gan trung nhau). */
+  double dyn_post_tol_ = 0.0;
+  /* [CD2 10/11] Khan cap (khan_cap_ cua planner): A* that bai voi bien search/dyn_margin thi thu lai voi bien
+     giam tung 0.1 m toi dyn_margin_em_ (vd 0.3 -> 0.2 -> 0.1). < 0 = tat (bao that bai nhu cu). */
+  double dyn_margin_em_ = -1.0;
   /* [CD2] Huong mui (planYaw). 0 = goc; 1 = sua loi quan goc; 2 = 1 + giu huong khi
      UAV gan dung yen (quang di trong forward_t < yaw_hold_dist_) */
   int    yaw_mode_      = 0;

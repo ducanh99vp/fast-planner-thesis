@@ -85,11 +85,17 @@
   <arg name="p3_lambda" default="5.0"/>
   <arg name="p3_d0" default="0.5"/>
   <arg name="p3_tdyn" default="1.5"/>             <!-- [CD2 04/11] -->
+  <arg name="p3_post_margin" default="-1.0"/>     <!-- [CD2 06/11] -->
+  <arg name="p3_post_tol" default="0.0"/>     <!-- [CD2 09/11] -->
+  <arg name="p3_post_wall" default="-1.0"/>     <!-- [CD2 09/11] -->
+  <arg name="p3_post_static" default="-1.0"/>     <!-- [CD2 07/11] -->
   <arg name="p3_margin" default="0.3"/>
   <arg name="search_zmin" default="-100000.0"/>
   <arg name="search_zmax" default="100000.0"/>
   <arg name="guide_clearance" default="0.2"/>
   <arg name="replan_latency" default="-1.0"/>
+  <arg name="replan_latency_em" default="-1.0"/>   <!-- [CD2 10/11] -->
+  <arg name="dyn_margin_em" default="-1.0"/>       <!-- [CD2 10/11] -->
   <arg name="keep_memory" default="false"/>      <!-- [CD1] -->
   <arg name="global_guide" default="false"/>     <!-- [CD1] -->
   <arg name="goal_retry" default="false"/>       <!-- [CD2] -->
@@ -147,11 +153,17 @@
     <arg name="p3_lambda" value="$(arg p3_lambda)"/>
     <arg name="p3_d0" value="$(arg p3_d0)"/>
     <arg name="p3_tdyn" value="$(arg p3_tdyn)"/>
+    <arg name="p3_post_margin" value="$(arg p3_post_margin)"/>
+    <arg name="p3_post_static" value="$(arg p3_post_static)"/>
+    <arg name="p3_post_wall" value="$(arg p3_post_wall)"/>
+    <arg name="p3_post_tol" value="$(arg p3_post_tol)"/>
     <arg name="p3_margin" value="$(arg p3_margin)"/>
     <arg name="search_zmin" value="$(arg search_zmin)"/>
     <arg name="search_zmax" value="$(arg search_zmax)"/>
     <arg name="guide_clearance" value="$(arg guide_clearance)"/>
     <arg name="replan_latency" value="$(arg replan_latency)"/>
+    <arg name="replan_latency_em" value="$(arg replan_latency_em)"/>
+    <arg name="dyn_margin_em" value="$(arg dyn_margin_em)"/>
     <arg name="keep_memory" value="$(arg keep_memory)"/>
     <arg name="global_guide" value="$(arg global_guide)"/>
     <arg name="goal_retry" value="$(arg goal_retry)"/>

@@ -57,6 +57,7 @@ void KinoReplanFSM::init(ros::NodeHandle& nh) {
   nh.param("fsm/guide_hidden_r", guide_hidden_r_, 2.5); // [CD1]
   nh.param("fsm/guide_replan_t", guide_replan_t_, 1.0); // [CD1]
   nh.param("fsm/replan_latency", replan_latency_, -1.0);   // [CD2 Indoor] <= 0 = ban goc
+  nh.param("fsm/replan_latency_em", replan_latency_em_, -1.0);   // [CD2 10/11] <= 0 = tat
   takeoff_planned_ = false;
 
   nh.param("fsm/waypoint_num", waypoint_num_, -1);
@@ -191,7 +192,8 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
       /* [CD2 04/11] Quy dao cu da HET truoc luc ban giao thi UAV dang treo tai diem cuoi: lap tu odom.
          Truoc day kep t = duration -> lay trang thai cuoi quy dao (con van toc) lam diem xuat phat mai
          mai khong doi -> that bai lap lai den het gio (OUT hat 9 T3: 3866 lan, cach dich 0.94 m). */
-      const double t_ban_giao_rel = (ros::Time::now() - info->start_time_).toSec() + replan_latency_;
+      const double tre = treLapKeHoach();   // [CD2 10/11] khan cap -> tre ngan
+      const double t_ban_giao_rel = (ros::Time::now() - info->start_time_).toSec() + tre;
       if (replan_latency_ > 0.0 && info->traj_id_ > 0 && t_ban_giao_rel < info->duration_) {
         /* [CD2 16/10] Lap lai sau that bai: lap tu trang thai LENH cua quy dao dang bay tai luc
            ban giao (giong REPLAN_TRAJ), khong tu odom voi gia toc 0 va moc = luc bat dau lap — hai
@@ -203,7 +205,7 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
         start_yaw_(0) = info->yaw_traj_.evaluateDeBoorT(t)[0];
         start_yaw_(1) = info->yawdot_traj_.evaluateDeBoorT(t)[0];
         start_yaw_(2) = info->yawdotdot_traj_.evaluateDeBoorT(t)[0];
-        planner_manager_->desired_start_time_ = ros::Time::now() + ros::Duration(replan_latency_);
+        planner_manager_->desired_start_time_ = ros::Time::now() + ros::Duration(tre);
         std_msgs::Empty replan_msg;
         replan_pub_.publish(replan_msg);
       } else {
@@ -220,6 +222,7 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
       const ros::Time t_ban_giao = planner_manager_->desired_start_time_;   // [CD2 25/10]
       planner_manager_->desired_start_time_ = ros::Time(0);   // [CD2 16/10]
       if (success) {
+        khan_cap_ = false;   // [CD2 10/11]
         changeFSMExecState(EXEC_TRAJ, "FSM");
       } else if (stopIfUnsafe(t_ban_giao)) {
         changeFSMExecState(EXEC_TRAJ, "STOP");
@@ -286,16 +289,17 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
          bay quy dao cu trong luc cho), va gan moc thoi gian dung thoi diem do. Quy dao moi
          vi vay noi tiep quy dao cu, du lap ke hoach mat bao lau trong pham vi do. */
       if (replan_latency_ > 0.0) {
+        const double tre = treLapKeHoach();   // [CD2 10/11] khan cap -> tre ngan
         /* Ban giao luc (bay gio + replan_latency_), KHONG phai (dau quy dao + latency): neu
            quy dao hien tai con dang CHO (lap lai lien tiep, t_cur < 0) thi cong don lam moc
            ban giao troi xa dan va bi ho voi quy dao cu da cat -> lenh v = 0 -> giat (do 13/10). */
-        t_cur = min(max(t_cur + replan_latency_, 0.0), info->duration_);
+        t_cur = min(max(t_cur + tre, 0.0), info->duration_);
         /* [CD2 24/10] Quy dao cu DA HET (UAV dang treo o diem cuoi, vd cho o dich tam) thi moc
            "diem cuoi quy dao cu" da nam trong QUA KHU: traj_server bat dau quy dao moi giua chung,
            lenh nhay -> I4-R3 hat 6 nghieng 54 do, 2.06 m/s (moc lui 1.0 s). Khong bao gio dat moc
            som hon bay gio + replan_latency_. */
         ros::Time t_start = info->start_time_ + ros::Duration(t_cur);
-        const ros::Time t_min = time_now + ros::Duration(replan_latency_);
+        const ros::Time t_min = time_now + ros::Duration(tre);
         if (t_start < t_min) t_start = t_min;
         planner_manager_->desired_start_time_ = t_start;
       }
@@ -315,6 +319,7 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
       const ros::Time t_ban_giao = planner_manager_->desired_start_time_;   // [CD2 25/10]
       planner_manager_->desired_start_time_ = ros::Time(0);   // [CD2 Indoor] khong de sot sang lan sau
       if (success) {
+        khan_cap_ = false;   // [CD2 10/11]
         changeFSMExecState(EXEC_TRAJ, "FSM");
       } else if (stopIfUnsafe(t_ban_giao)) {
         changeFSMExecState(EXEC_TRAJ, "STOP");
@@ -510,6 +515,11 @@ void KinoReplanFSM::checkCollisionCallback(const ros::TimerEvent& e) {
     if (!safe) {
       // cout << "current traj in collision." << endl;
       ROS_WARN("current traj in collision.");
+      /* [CD2 10/11] Khan cap: lap tu trang thai sau replan_latency_em_ va cho A* noi bien neu that bai,
+         giu toi khi lap duoc quy dao moi (ca cac lan thu lai o GEN_NEW_TRAJ). */
+      if (replan_latency_em_ > 0.0 && !khan_cap_)
+        cout << "[CD2 khan] quy dao cu sap cham (" << dist << " m) -> lap tu +" << replan_latency_em_ << " s" << endl;
+      khan_cap_ = true;
       changeFSMExecState(REPLAN_TRAJ, "SAFETY");
     }
   }
@@ -616,8 +626,10 @@ bool KinoReplanFSM::callKinodynamicReplan() {
       cout << "[CD2] ne ngang toi " << q.transpose() << endl;
     }
   }
+  planner_manager_->khan_cap_ = khan_cap_;   // [CD2 10/11] A* duoc noi bien neu that bai
   bool plan_success =
       planner_manager_->kinodynamicReplan(start_pt_, start_vel_, start_acc_, target, target_vel);
+  planner_manager_->khan_cap_ = false;
   if (dodge) planner_manager_->setStartEscape(-1.0);
   if (plan_success) dodge_traj_ = dodge;
 

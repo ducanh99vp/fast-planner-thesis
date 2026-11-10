@@ -128,6 +128,7 @@ struct MappingData {
   std::vector<char> occupancy_buffer_neg;
   std::vector<char> occupancy_buffer_inflate_;
   std::vector<char> dyn_only_buffer_;   // [CD2] o bi chiem CHI boi vet quet vat can dong
+  std::vector<char> occupancy_buffer_raw_;   // [CD2 09/11] o chua diem cua dam may (CHUA phinh)
   std::vector<Eigen::Vector3i> dyn_marked_;   // [CD1] o vet quet da ve chu ky truoc (xoa khi giu tri nho)
   std::vector<double> distance_buffer_;
   std::vector<double> distance_buffer_neg_;
@@ -207,6 +208,10 @@ public:
   bool   dynPredAt(int i, double t_abs, Eigen::Vector3d& c, Eigen::Vector3d& half, int& type) const;
   double dynPredDist(int i, const Eigen::Vector3d& p, double t_abs, Eigen::Vector3d* grad = nullptr) const;
   double dynPredMinDist(const Eigen::Vector3d& p, double t_abs) const;
+  /* [CD2 09/11] Khoang cach tu pos toi MAT GAN NHAT cua o bi chiem THAT (chua phinh) trong ban kinh r_max;
+     khong co o nao thi tra r_max. Diem dam may nam trong o nen day la can duoi cua khoang cach toi diem
+     that (sai toi da ~1 o, ve phia an toan) - khac ESDF tren ban do phinh, luong tu 0.1*sqrt(n). */
+  double rawObstacleDist(const Eigen::Vector3d& pos, double r_max);
   bool dodgePoint(const Eigen::Vector3d& p, const Eigen::Vector3d& goal, double margin,
                   Eigen::Vector3d& q);   // [CD2] diem ne ngang khoi vet quet phia truoc vat can
 

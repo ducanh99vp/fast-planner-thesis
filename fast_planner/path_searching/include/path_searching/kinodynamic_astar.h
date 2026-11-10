@@ -210,6 +210,9 @@ class KinodynamicAstar {
 
   void setEnvironment(const EDTEnvironment::Ptr& env);
   void setTimeBase(double t_abs) { t_base_ = t_abs; }   // [CD2 P3]
+  /* [CD2 10/11] Bien vat can dong tam thoi khi khan cap; goi lai voi gia tri tham so de tra lai. */
+  void   setDynMargin(double m) { dyn_margin_ = m; }
+  double getDynMargin() const { return dyn_margin_; }
   /* [CD2] r > 0: bong bong thoat tam thoi max(r, tham so) (duong ne ngang dai hon 0.6 m);
      r <= 0: tra lai tham so. */
   void setStartEscape(double r) {

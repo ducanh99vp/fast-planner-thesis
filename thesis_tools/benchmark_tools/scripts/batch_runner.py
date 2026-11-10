@@ -247,6 +247,57 @@ CONFIGS = {
                     "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
                     "p3:=true", "guide_dyn_soft:=4.0", "dyn_pair:=true", "p3_check_margin:=0.3",
                     "goal_dyn:=3.0", "p3_tdyn:=3.0"],
+    # [CD2 06/11] T3 + kiem cung ke hoach sau gian thoi gian: khoang ho du doan trong 3 s < 0.35 m thi giai
+    # lai voi f_d x2/x4/x8. 04/11: ca 3 luot T3 < 0.267 m deu do ke hoach phat ra chi cach 0.21-0.25 m.
+    "TN2P3LDMGT3H": ["dyn_sweep_T:=-1.0", "inflation:=0.2", "start_escape:=0.6",
+                     "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+                     "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+                     "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+                     "p3:=true", "guide_dyn_soft:=4.0", "dyn_pair:=true", "p3_check_margin:=0.3",
+                     "goal_dyn:=3.0", "p3_tdyn:=3.0", "p3_post_margin:=0.35"],
+    # [CD2 07/11] T3H + nguong tuong 0.1 cho ung vien giai lai. 08/11: KHONG tac dung (ESDF luong tu 0.1*sqrt(n),
+    # 0.1 == staticOk 0.05) - kiem 08/11 chay luat cu (min ca quy dao); tu 09/11 chay luat so tung diem. Thay bang T3HT.
+    "TN2P3LDMGT3HS": ["dyn_sweep_T:=-1.0", "inflation:=0.2", "start_escape:=0.6",
+                      "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+                      "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+                      "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+                      "p3:=true", "guide_dyn_soft:=4.0", "dyn_pair:=true", "p3_check_margin:=0.3",
+                      "goal_dyn:=3.0", "p3_tdyn:=3.0", "p3_post_margin:=0.35", "p3_post_static:=0.1"],
+    # [CD2 09/11] T3H + nguong tuong cho ung vien giai lai P3H: tai moi thoi diem ESDF >= min(ban dau, 0.15),
+    # tuc cach vung phinh >= 2 o (~ >= 0.30 m tuong that, inflation 0.2). f5 I3 hat 9: x8 cach tuong 0.263 m.
+    "TN2P3LDMGT3HT": ["dyn_sweep_T:=-1.0", "inflation:=0.2", "start_escape:=0.6",
+                      "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+                      "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+                      "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+                      "p3:=true", "guide_dyn_soft:=4.0", "dyn_pair:=true", "p3_check_margin:=0.3",
+                      "goal_dyn:=3.0", "p3_tdyn:=3.0", "p3_post_margin:=0.35", "p3_post_static:=0.15"],
+    # [CD2 09/11] T3H + nguong toi o chiem THAT (chua phinh) cho ung vien giai lai P3H, so tung diem:
+    # tai moi t, khoang cach toi mat o chiem that >= min(ban dau, 0.30 m). T3HT (ESDF 0.15) bo ca ung vien
+    # ~0.35 m o I4D-R1 vi ESDF luong tu 0.1 m.
+    "TN2P3LDMGT3HC": ["dyn_sweep_T:=-1.0", "inflation:=0.2", "start_escape:=0.6",
+                      "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+                      "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+                      "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+                      "p3:=true", "guide_dyn_soft:=4.0", "dyn_pair:=true", "p3_check_margin:=0.3",
+                      "goal_dyn:=3.0", "p3_tdyn:=3.0", "p3_post_margin:=0.35", "p3_post_wall:=0.3"],
+    # [CD2 09/11] T3HC voi nguong 0.28 + dung sai 1 cm so voi ke hoach ban dau. Kiem T3HC: ca 31 ung vien bi bo
+    # do 0.289-0.300 m (tuong that >= 0.289) -> bo thua; 1 lan bo vi kem ban dau 0.00004 m.
+    "TN2P3LDMGT3HC28": ["dyn_sweep_T:=-1.0", "inflation:=0.2", "start_escape:=0.6",
+                      "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+                      "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+                      "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+                      "p3:=true", "guide_dyn_soft:=4.0", "dyn_pair:=true", "p3_check_margin:=0.3",
+                      "goal_dyn:=3.0", "p3_tdyn:=3.0", "p3_post_margin:=0.35", "p3_post_wall:=0.28", "p3_post_tol:=0.01"],
+    # [CD2 10/11] HC28 + phan ung KHAN CAP (OUT 18 f6: VC quay dau dot ngot, phat hien truoc 0.81 s, luc do con
+    # ne duoc 0.41 m nhung A* lap tu +0.2 s chi con 0.25 < bien 0.3 -> 15 lan that bai, bay quy dao cu, -0.11):
+    # quy dao cu sap cham -> lap tu +0.05 s; A* that bai -> noi bien 0.2, 0.1.
+    "TN2P3LDMGT3HC28K": ["dyn_sweep_T:=-1.0", "inflation:=0.2", "start_escape:=0.6",
+                      "astar_max_time:=0.08", "replan_latency:=0.2", "yaw_mode:=2", "virtual_ceil:=-1.0",
+                      "goal_retry:=true", "keep_memory:=true", "global_guide:=true", "guide_ignore_dyn:=true",
+                      "guide_clearance:=0.1", "search_zmin:=0.5", "search_zmax:=2.0", "dyn_reflect:=true",
+                      "p3:=true", "guide_dyn_soft:=4.0", "dyn_pair:=true", "p3_check_margin:=0.3",
+                      "goal_dyn:=3.0", "p3_tdyn:=3.0", "p3_post_margin:=0.35", "p3_post_wall:=0.28", "p3_post_tol:=0.01",
+                      "replan_latency_em:=0.05", "dyn_margin_em:=0.1"],
     # SW15 + huong B: phep kiem va cham 20 Hz BO QUA diem qua 1.5 s toi neu diem do
     # CHI cham vet quet (khong co vat can that trong 0.15 m) -> bot lap lai [SAFETY]
     "SW15H": ["dyn_sweep_T:=1.5", "dyn_check_horizon:=1.5"],

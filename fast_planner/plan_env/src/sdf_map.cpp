@@ -123,6 +123,7 @@ void SDFMap::initMap(ros::NodeHandle& nh) {
   md_.occupancy_buffer_neg = vector<char>(buffer_size, 0);
   md_.occupancy_buffer_inflate_ = vector<char>(buffer_size, 0);
   md_.dyn_only_buffer_ = vector<char>(buffer_size, 0);   // [CD2]
+  md_.occupancy_buffer_raw_ = vector<char>(buffer_size, 0);   // [CD2 09/11]
 
   md_.distance_buffer_ = vector<double>(buffer_size, 10000);
   md_.distance_buffer_neg_ = vector<double>(buffer_size, 10000);
@@ -227,6 +228,7 @@ void SDFMap::resetBuffer(Eigen::Vector3d min_pos, Eigen::Vector3d max_pos) {
       for (int z = min_id(2); z <= max_id(2); ++z) {
         md_.occupancy_buffer_inflate_[toAddress(x, y, z)] = 0;
         md_.dyn_only_buffer_[toAddress(x, y, z)] = 0;   // [CD2]
+        md_.occupancy_buffer_raw_[toAddress(x, y, z)] = 0;   // [CD2 09/11]
         md_.distance_buffer_[toAddress(x, y, z)] = 10000;
       }
 }
@@ -1004,6 +1006,28 @@ double SDFMap::dynPredDist(int i, const Eigen::Vector3d& p, double t_abs, Eigen:
   return dist;
 }
 
+double SDFMap::rawObstacleDist(const Eigen::Vector3d& pos, double r_max) {   // [CD2 09/11]
+  Eigen::Vector3i c;
+  posToIndex(pos, c);
+  const int    n   = int(std::ceil(r_max / mp_.resolution_));
+  const double h   = 0.5 * mp_.resolution_;
+  double       d2m = r_max * r_max;
+  for (int x = -n; x <= n; ++x)
+    for (int y = -n; y <= n; ++y)
+      for (int z = -n; z <= n; ++z) {
+        Eigen::Vector3i id = c + Eigen::Vector3i(x, y, z);
+        if (!isInMap(id)) continue;
+        const int a = toAddress(id);
+        // o chiem that: dam may (nhanh cloud) hoac log-odds (nhanh anh do sau)
+        if (!md_.occupancy_buffer_raw_[a] && md_.occupancy_buffer_[a] <= mp_.min_occupancy_log_) continue;
+        Eigen::Vector3d ctr;
+        indexToPos(id, ctr);
+        const Eigen::Vector3d g = ((pos - ctr).cwiseAbs().array() - h).max(0.0).matrix();   // toi mat hop
+        d2m = std::min(d2m, g.squaredNorm());
+      }
+  return std::sqrt(d2m);
+}
+
 double SDFMap::dynPredMinDist(const Eigen::Vector3d& p, double t_abs) const {
   double dmin = 1e9;
   for (int i = 0; i < (int)dyn_pred_.size(); ++i) dmin = std::min(dmin, dynPredDist(i, p, t_abs));
@@ -1297,6 +1321,10 @@ void SDFMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr& img) {
 
     if (fabs(devi(0)) < mp_.local_update_range_(0) && fabs(devi(1)) < mp_.local_update_range_(1) &&
         fabs(devi(2)) < mp_.local_update_range_(2)) {
+
+      /* [CD2 09/11] danh dau o chua diem (chua phinh) cho rawObstacleDist */
+      posToIndex(p3d, inf_pt);
+      if (isInMap(inf_pt)) md_.occupancy_buffer_raw_[toAddress(inf_pt)] = 1;
 
       /* inflate the point */
       for (int x = -inf_step; x <= inf_step; ++x)

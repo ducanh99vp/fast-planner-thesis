@@ -97,6 +97,14 @@ private:
   double guide_hidden_r_;   // [CD1] dich tam KHUAT van duoc chon neu cach diem xuat phat <= ban kinh nay
   double guide_replan_t_;   // [CD1] lap lai khi quy dao con < guide_replan_t_ giay
   double replan_latency_;   // [CD2 Indoor] > 0: lap ke hoach tu trang thai sau ngan nay giay
+  /* [CD2 10/11] Phan ung khan cap (OUT 18 f6): phep kiem 20 Hz bao quy dao cu sap cham -> khan_cap_ = true
+     cho toi khi lap duoc quy dao moi. Trong luc do lap tu trang thai sau replan_latency_em_ giay (thay vi
+     replan_latency_ 0.2 s: moi 0.05 s tre mat ~0.04 m khoang ne). <= 0 = tat (dung replan_latency_). */
+  double replan_latency_em_ = -1.0;
+  bool   khan_cap_ = false;
+  double treLapKeHoach() const {
+    return (khan_cap_ && replan_latency_em_ > 0.0) ? replan_latency_em_ : replan_latency_;
+  }
   double waypoints_[50][3];
   int waypoint_num_;
 

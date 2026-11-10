@@ -55,10 +55,16 @@
   <arg name="p3_lambda" default="5.0"/>
   <arg name="p3_d0" default="0.5"/>
   <arg name="p3_tdyn" default="1.5"/>   <!-- [CD2 04/11] tam nhin f_d cua bo toi uu (s); A* nhin 3.0 -->
+  <arg name="p3_post_margin" default="-1.0"/>   <!-- [CD2 06/11] kiem cung ke hoach sau gian thoi gian (m); < 0 = tat -->
+  <arg name="p3_post_wall" default="-1.0"/>   <!-- [CD2 09/11] nguong toi o chiem THAT cho ung vien P3H (m); > 0 thay p3_post_static -->
+  <arg name="p3_post_tol" default="0.0"/>   <!-- [CD2 09/11] dung sai so voi ke hoach ban dau (m) -->
+  <arg name="p3_post_static" default="-1.0"/>   <!-- [CD2 07/11] nguong ESDF toi tuong cho ung vien giai lai P3H, so tung diem (m); < 0 = tat -->
   <arg name="p3_margin" default="0.3"/>
   <arg name="search_zmin" default="-100000.0"/>
   <arg name="search_zmax" default="100000.0"/>
   <arg name="replan_latency" default="-1.0"/>
+  <arg name="replan_latency_em" default="-1.0"/>   <!-- [CD2 10/11] quy dao cu sap cham -> lap tu +tre ngan (s) -->
+  <arg name="dyn_margin_em" default="-1.0"/>      <!-- [CD2 10/11] khan cap: A* noi bien toi gia tri nay (m) -->
   <!-- [CD1] ban do co tri nho + dan duong toan cuc (false = ban goc) -->
   <arg name="keep_memory"     default="false"/>
   <arg name="global_guide"    default="false"/>
@@ -190,11 +196,18 @@
     <param name="manager/dyn_check_time" value="true" type="bool" if="$(arg p3)"/>
     <param name="manager/dyn_check_margin" value="$(arg p3_check_margin)" type="double" if="$(arg p3)"/>
     <param name="manager/dyn_check_tmax" value="1.5" type="double" if="$(arg p3)"/>
+    <param name="manager/dyn_post_margin" value="$(arg p3_post_margin)" type="double" if="$(arg p3)"/>
+    <param name="manager/dyn_post_tmax" value="3.0" type="double" if="$(arg p3)"/>   <!-- = search/dyn_tmax -->
+    <param name="manager/dyn_post_static_min" value="$(arg p3_post_static)" type="double" if="$(arg p3)"/>
+    <param name="manager/dyn_post_wall" value="$(arg p3_post_wall)" type="double" if="$(arg p3)"/>
+    <param name="manager/dyn_post_tol" value="$(arg p3_post_tol)" type="double" if="$(arg p3)"/>
     <param name="fsm/takeoff_watch" value="true" type="bool" if="$(arg p3)"/>   <!-- [CD2 P3] cat canh co canh chung -->
     <param name="search/z_max" value="$(arg search_zmax)" type="double"/>
     <param name="astar/ignore_dyn" value="$(arg guide_ignore_dyn)" type="bool"/>
     <param name="manager/guide_ignore_dyn" value="$(arg guide_ignore_dyn)" type="bool"/>
     <param name="fsm/replan_latency" value="$(arg replan_latency)" type="double"/>
+    <param name="fsm/replan_latency_em" value="$(arg replan_latency_em)" type="double"/>   <!-- [CD2 10/11] -->
+    <param name="manager/dyn_margin_em" value="$(arg dyn_margin_em)" type="double"/>       <!-- [CD2 10/11] -->
     <param name="manager/local_segment_length" value="6.0" type="double"/>
     <param name="manager/clearance_threshold" value="0.2" type="double"/>
     <param name="manager/control_points_distance" value="$(arg ctrl_pt_dist)" type="double"/>
