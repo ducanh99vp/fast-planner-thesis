@@ -33,6 +33,13 @@
   <arg name="dyn_spawn"         default=""/>
   <arg name="dyn_seed"          default="-1"/>
   <arg name="dyn_start_on_goal" default="true"/>
+  <!-- [CD2 13/11] van toc KHONG DEU (dyn_var_speed:=true): toc do [spd_min, spd_max] doi sau [spd_tmin, spd_tmax] s, gia toc <= spd_acc -->
+  <arg name="dyn_var_speed" default="false"/>
+  <arg name="dyn_spd_min" default="0.3"/>
+  <arg name="dyn_spd_max" default="1.3"/>
+  <arg name="dyn_spd_tmin" default="1.0"/>
+  <arg name="dyn_spd_tmax" default="3.0"/>
+  <arg name="dyn_spd_acc" default="1.0"/>
   <!-- [CD2] chieu cao THAP NHAT cua cot tinh. Goc HKUST = 0.0: moi cot nho cao
        ngau nhien 0-3 m nen UAV bay VUOT qua phan lon. 3.0 = moi cot cao 3 m,
        vuot tran ao 2.5 m -> buoc phai lach ngang, giong trong nha. -->
@@ -158,6 +165,12 @@
     <param name="obj_generator/spawn_boxes"   value="$(arg dyn_spawn)" type="str"/>
     <param name="obj_generator/seed"          value="$(arg dyn_seed)" type="int"/>
     <param name="obj_generator/start_on_goal" value="$(arg dyn_start_on_goal)" type="bool"/>
+    <param name="obj_generator/var_speed" value="$(arg dyn_var_speed)" type="bool"/>
+    <param name="obj_generator/spd_min" value="$(arg dyn_spd_min)" type="double"/>
+    <param name="obj_generator/spd_max" value="$(arg dyn_spd_max)" type="double"/>
+    <param name="obj_generator/spd_tmin" value="$(arg dyn_spd_tmin)" type="double"/>
+    <param name="obj_generator/spd_tmax" value="$(arg dyn_spd_tmax)" type="double"/>
+    <param name="obj_generator/spd_acc" value="$(arg dyn_spd_acc)" type="double"/>
     <param name="obj_generator/yaw_dot"   value="0.0"/>
     <param name="obj_generator/acc_r1"    value="0.0"/>
     <param name="obj_generator/acc_r2"    value="0.0"/>

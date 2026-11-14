@@ -125,6 +125,7 @@ class KinodynamicAstar {
   /* search */
   double max_tau_, init_max_tau_;
   double max_vel_, max_acc_;
+  double v_slow_ = -1.0;   // [CD2 13/11]
   double w_time_, horizon_, lambda_heu_;
   int allocate_num_, check_num_;
   /* [CD2] Bong bong thoat. Khi diem xuat phat NAM TRONG vung cam (vet quet vat
@@ -212,6 +213,9 @@ class KinodynamicAstar {
   void setTimeBase(double t_abs) { t_base_ = t_abs; }   // [CD2 P3]
   /* [CD2 10/11] Bien vat can dong tam thoi khi khan cap; goi lai voi gia tri tham so de tra lai. */
   void   setDynMargin(double m) { dyn_margin_ = m; }
+  /* [CD2 13/11] che do cham (sap giao cat vat can dong): > 0 = thanh phan van toc vuot gia tri nay phai GIAM
+     dan (>= 0.25 max_acc moi buoc) -> A* phanh ve duoi v roi giu; <= 0 = tat (ban goc). */
+  void   setSlowVel(double v) { v_slow_ = v; }
   double getDynMargin() const { return dyn_margin_; }
   /* [CD2] r > 0: bong bong thoat tam thoi max(r, tham so) (duong ne ngang dai hon 0.6 m);
      r <= 0: tra lai tham so. */

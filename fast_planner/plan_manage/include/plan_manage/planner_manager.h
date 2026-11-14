@@ -26,6 +26,7 @@
 #ifndef _PLANNER_MANAGER_H_
 #define _PLANNER_MANAGER_H_
 
+#include <map>
 #include <bspline_opt/bspline_optimizer.h>
 #include <bspline/non_uniform_bspline.h>
 
@@ -71,6 +72,9 @@ public:
   /* [CD2 10/11] FSM dat true khi quy dao cu sap cham (phep kiem 20 Hz): A* that bai voi bien dyn_margin
      thi thu lai voi bien nho dan (buoc 0.1) toi pp_.dyn_margin_em_ thay vi bao that bai. */
   bool khan_cap_ = false;
+  /* [CD2 13/11] huong 4: van toc tung vat can dong (theo ma) luc lap ke hoach dang bay */
+  std::map<int, Eigen::Vector3d> plan_dyn_vel_;
+  bool dynVelChanged(int& id_out, double& dv_out, double& d_out);
   GlobalTrajData global_data_;
   MidPlanData plan_data_;
   EDTEnvironment::Ptr edt_environment_;

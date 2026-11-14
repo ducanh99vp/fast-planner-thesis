@@ -223,6 +223,7 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
       planner_manager_->desired_start_time_ = ros::Time(0);   // [CD2 16/10]
       if (success) {
         khan_cap_ = false;   // [CD2 10/11]
+        som_      = false;   // [CD2 13/11]
         changeFSMExecState(EXEC_TRAJ, "FSM");
       } else if (stopIfUnsafe(t_ban_giao)) {
         changeFSMExecState(EXEC_TRAJ, "STOP");
@@ -320,6 +321,7 @@ void KinoReplanFSM::execFSMCallback(const ros::TimerEvent& e) {
       planner_manager_->desired_start_time_ = ros::Time(0);   // [CD2 Indoor] khong de sot sang lan sau
       if (success) {
         khan_cap_ = false;   // [CD2 10/11]
+        som_      = false;   // [CD2 13/11]
         changeFSMExecState(EXEC_TRAJ, "FSM");
       } else if (stopIfUnsafe(t_ban_giao)) {
         changeFSMExecState(EXEC_TRAJ, "STOP");
@@ -521,6 +523,16 @@ void KinoReplanFSM::checkCollisionCallback(const ros::TimerEvent& e) {
         cout << "[CD2 khan] quy dao cu sap cham (" << dist << " m) -> lap tu +" << replan_latency_em_ << " s" << endl;
       khan_cap_ = true;
       changeFSMExecState(REPLAN_TRAJ, "SAFETY");
+    } else {
+      /* [CD2 13/11] Huong 4: vat can doi van toc lam ke hoach het dat le -> lap lai ngay, khong cho toi luc sap cham */
+      int    id;
+      double dv, d;
+      if (planner_manager_->dynVelChanged(id, dv, d)) {
+        cout << "[CD2 doi toc] vat can " << id << " doi van toc " << dv << " m/s, quy dao dang bay se cach no " << d
+             << " m -> lap lai" << endl;
+        som_ = true;
+        changeFSMExecState(REPLAN_TRAJ, "SAFETY");
+      }
     }
   }
 }

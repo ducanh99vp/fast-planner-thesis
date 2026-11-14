@@ -30,6 +30,13 @@
   <arg name="dyn_spawn"     default=""/>
   <arg name="dyn_seed"      default="-1"/>
   <arg name="dyn_start_on_goal" default="true"/>
+  <!-- [CD2 13/11] van toc KHONG DEU (dyn_var_speed:=true): toc do [spd_min, spd_max] doi sau [spd_tmin, spd_tmax] s, gia toc <= spd_acc -->
+  <arg name="dyn_var_speed" default="false"/>
+  <arg name="dyn_spd_min" default="0.3"/>
+  <arg name="dyn_spd_max" default="1.3"/>
+  <arg name="dyn_spd_tmin" default="1.0"/>
+  <arg name="dyn_spd_tmax" default="3.0"/>
+  <arg name="dyn_spd_acc" default="1.0"/>
   <arg name="p_hmin" default="0.0"/>
   <arg name="p_num" default="150"/>
   <arg name="c_num" default="10"/>
@@ -96,6 +103,10 @@
   <arg name="replan_latency" default="-1.0"/>
   <arg name="replan_latency_em" default="-1.0"/>   <!-- [CD2 10/11] -->
   <arg name="dyn_margin_em" default="-1.0"/>       <!-- [CD2 10/11] -->
+  <arg name="dyn_dv" default="-1.0"/>         <!-- [CD2 13/11] vat can doi van toc qua nguong nay (m/s) -> lap lai ngay -->
+  <arg name="dyn_unc_acc" default="-1.0"/>   <!-- [CD2 13/11 huong 1] gia toc toi da gia dinh cua vat can (m/s^2); <= 0 = tat vung bat dinh -->
+  <arg name="dyn_unc_max" default="0.5"/>    <!-- [CD2 13/11 huong 1] tran do keo dai moi phia (m) -->
+  <arg name="dyn_slow_vel" default="-1.0"/>   <!-- [CD2 13/11] sap giao cat vat can dong -> toc do toi da (m/s) -->
   <arg name="keep_memory" default="false"/>      <!-- [CD1] -->
   <arg name="global_guide" default="false"/>     <!-- [CD1] -->
   <arg name="goal_retry" default="false"/>       <!-- [CD2] -->
@@ -164,6 +175,10 @@
     <arg name="replan_latency" value="$(arg replan_latency)"/>
     <arg name="replan_latency_em" value="$(arg replan_latency_em)"/>
     <arg name="dyn_margin_em" value="$(arg dyn_margin_em)"/>
+    <arg name="dyn_dv" value="$(arg dyn_dv)"/>
+    <arg name="dyn_unc_acc" value="$(arg dyn_unc_acc)"/>
+    <arg name="dyn_unc_max" value="$(arg dyn_unc_max)"/>
+    <arg name="dyn_slow_vel" value="$(arg dyn_slow_vel)"/>
     <arg name="keep_memory" value="$(arg keep_memory)"/>
     <arg name="global_guide" value="$(arg global_guide)"/>
     <arg name="goal_retry" value="$(arg goal_retry)"/>
@@ -192,6 +207,12 @@
     <arg name="dyn_spawn"     value="$(arg dyn_spawn)"/>
     <arg name="dyn_seed"      value="$(arg dyn_seed)"/>
     <arg name="dyn_start_on_goal" value="$(arg dyn_start_on_goal)"/>
+    <arg name="dyn_var_speed" value="$(arg dyn_var_speed)"/>
+    <arg name="dyn_spd_min" value="$(arg dyn_spd_min)"/>
+    <arg name="dyn_spd_max" value="$(arg dyn_spd_max)"/>
+    <arg name="dyn_spd_tmin" value="$(arg dyn_spd_tmin)"/>
+    <arg name="dyn_spd_tmax" value="$(arg dyn_spd_tmax)"/>
+    <arg name="dyn_spd_acc" value="$(arg dyn_spd_acc)"/>
     <arg name="p_hmin" value="$(arg p_hmin)"/>
   </include>
 

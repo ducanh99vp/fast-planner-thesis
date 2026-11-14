@@ -65,6 +65,10 @@
   <arg name="replan_latency" default="-1.0"/>
   <arg name="replan_latency_em" default="-1.0"/>   <!-- [CD2 10/11] quy dao cu sap cham -> lap tu +tre ngan (s) -->
   <arg name="dyn_margin_em" default="-1.0"/>      <!-- [CD2 10/11] khan cap: A* noi bien toi gia tri nay (m) -->
+  <arg name="dyn_dv" default="-1.0"/>         <!-- [CD2 13/11] vat can doi van toc qua nguong nay (m/s) -> lap lai ngay -->
+  <arg name="dyn_unc_acc" default="-1.0"/>   <!-- [CD2 13/11 huong 1] gia toc toi da gia dinh cua vat can (m/s^2); <= 0 = tat vung bat dinh -->
+  <arg name="dyn_unc_max" default="0.5"/>    <!-- [CD2 13/11 huong 1] tran do keo dai moi phia (m) -->
+  <arg name="dyn_slow_vel" default="-1.0"/>   <!-- [CD2 13/11] sap giao cat vat can dong -> toc do toi da (m/s) -->
   <!-- [CD1] ban do co tri nho + dan duong toan cuc (false = ban goc) -->
   <arg name="keep_memory"     default="false"/>
   <arg name="global_guide"    default="false"/>
@@ -182,6 +186,8 @@
     <!-- [CD2 P3] chi dat khi p3 = true; khong dat thi ma dung mac dinh (tat) -->
     <param name="sdf_map/dyn_pred_T" value="3.0" type="double" if="$(arg p3)"/>
     <param name="sdf_map/dyn_pred_pair" value="$(arg dyn_pair)" type="bool"/>   <!-- [CD2 P3 26/10] -->
+    <param name="sdf_map/dyn_unc_acc" value="$(arg dyn_unc_acc)" type="double"/>   <!-- [CD2 13/11 huong 1] -->
+    <param name="sdf_map/dyn_unc_max" value="$(arg dyn_unc_max)" type="double"/>
     <param name="astar/dyn_soft_w" value="$(arg guide_dyn_soft)" type="double"/>   <!-- [CD2 P3L] -->
     <param name="fsm/guide_dyn_soft" value="$(eval arg('guide_dyn_soft') > 0)" type="bool"/>
     <param name="search/dyn_time" value="true" type="bool" if="$(arg p3)"/>
@@ -208,6 +214,8 @@
     <param name="fsm/replan_latency" value="$(arg replan_latency)" type="double"/>
     <param name="fsm/replan_latency_em" value="$(arg replan_latency_em)" type="double"/>   <!-- [CD2 10/11] -->
     <param name="manager/dyn_margin_em" value="$(arg dyn_margin_em)" type="double"/>       <!-- [CD2 10/11] -->
+    <param name="manager/dyn_dv_thresh" value="$(arg dyn_dv)" type="double"/>       <!-- [CD2 13/11] -->
+    <param name="manager/dyn_slow_vel" value="$(arg dyn_slow_vel)" type="double"/>  <!-- [CD2 13/11] -->
     <param name="manager/local_segment_length" value="6.0" type="double"/>
     <param name="manager/clearance_threshold" value="0.2" type="double"/>
     <param name="manager/control_points_distance" value="$(arg ctrl_pt_dist)" type="double"/>

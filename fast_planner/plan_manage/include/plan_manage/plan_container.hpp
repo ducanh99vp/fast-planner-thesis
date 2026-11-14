@@ -198,6 +198,13 @@ struct PlanParameters {
      chot khoang ho tinh sau toi uu (M5: f_d co the day quy dao vao tuong). Mac dinh tat. */
   bool   dyn_cost_ = false, dyn_check_time_ = false;
   double dyn_check_margin_ = 0.2, dyn_check_tmax_ = 1.5, dyn_static_min_ = 0.05;
+  /* [CD2 13/11] vat can VAN TOC KHONG DEU.
+     Huong 4: vat can doi van toc qua dyn_dv_thresh_ (m/s) so voi luc lap ke hoach VA theo du doan moi quy dao dang
+     bay se cach no < dyn_dv_range_ trong dyn_dv_T_ giay -> lap lai ngay (khong cho phep kiem va cham). <= 0 = tat.
+     Huong 5: neu bay thang deu trong dyn_slow_T_ giay ma co vat can toi gan hon dyn_slow_range_ -> lap ke hoach voi
+     toc do toi da dyn_slow_vel_ (A* phanh dan). <= 0 = tat. */
+  double dyn_dv_thresh_ = -1.0, dyn_dv_range_ = 0.5, dyn_dv_T_ = 3.0;
+  double dyn_slow_vel_ = -1.0, dyn_slow_range_ = 1.0, dyn_slow_T_ = 2.0;
   /* [CD2 06/11] kiem cung quy dao sau khi gian thoi gian (khoang ho du doan trong dyn_post_tmax_ giay);
      < 0 = tat */
   double dyn_post_margin_ = -1.0, dyn_post_tmax_ = 3.0;

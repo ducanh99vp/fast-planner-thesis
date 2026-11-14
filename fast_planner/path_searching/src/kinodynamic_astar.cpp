@@ -299,7 +299,12 @@ int KinodynamicAstar::searchImpl(Eigen::Vector3d start_pt, Eigen::Vector3d start
 
         // Check maximal velocity
         Eigen::Vector3d pro_v = pro_state.tail(3);
-        if (fabs(pro_v(0)) > max_vel_ || fabs(pro_v(1)) > max_vel_ || fabs(pro_v(2)) > max_vel_)
+        bool v_bad = fabs(pro_v(0)) > max_vel_ || fabs(pro_v(1)) > max_vel_ || fabs(pro_v(2)) > max_vel_;
+        /* [CD2 13/11] che do cham: thanh phan con vuot v_slow_ phai giam it nhat 0.25*max_acc*tau so voi nut cha */
+        if (!v_bad && v_slow_ > 0.0)
+          for (int d = 0; d < 3; ++d)
+            if (fabs(pro_v(d)) > v_slow_ && fabs(pro_v(d)) > fabs(cur_state(3 + d)) - 0.25 * max_acc_ * tau) v_bad = true;
+        if (v_bad)
         {
           ++dn.r_vel;
           if (init_search)

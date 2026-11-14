@@ -58,6 +58,12 @@ void FastPlannerManager::initPlanModules(ros::NodeHandle& nh) {
   nh.param("manager/dyn_post_wall", pp_.dyn_post_wall_, -1.0);               // [CD2 09/11]
   nh.param("manager/dyn_post_tol", pp_.dyn_post_tol_, 0.0);                  // [CD2 09/11]
   nh.param("manager/dyn_margin_em", pp_.dyn_margin_em_, -1.0);               // [CD2 10/11]
+  nh.param("manager/dyn_dv_thresh", pp_.dyn_dv_thresh_, -1.0);               // [CD2 13/11] huong 4
+  nh.param("manager/dyn_dv_range", pp_.dyn_dv_range_, 0.5);
+  nh.param("manager/dyn_dv_T", pp_.dyn_dv_T_, 3.0);
+  nh.param("manager/dyn_slow_vel", pp_.dyn_slow_vel_, -1.0);                 // [CD2 13/11] huong 5
+  nh.param("manager/dyn_slow_range", pp_.dyn_slow_range_, 1.0);
+  nh.param("manager/dyn_slow_T", pp_.dyn_slow_T_, 2.0);
   nh.param("manager/yaw_mode", pp_.yaw_mode_, 0);
   nh.param("manager/yaw_hold_dist", pp_.yaw_hold_dist_, 1.0);
   nh.param("manager/clearance_threshold", pp_.clearance_, -1.0);
@@ -209,6 +215,34 @@ bool FastPlannerManager::checkTrajCollision(double& distance, bool real_only) {
   return true;
 }
 
+/* [CD2 13/11] Huong 4: co vat can nao da doi van toc qua dyn_dv_thresh_ so voi luc lap ke hoach, ma theo du doan
+   MOI quy dao dang bay se cach no < dyn_dv_range_ trong dyn_dv_T_ giay toi khong. */
+bool FastPlannerManager::dynVelChanged(int& id_out, double& dv_out, double& d_out) {
+  if (pp_.dyn_dv_thresh_ <= 0.0) return false;
+  auto         map   = edt_environment_->sdf_map_;
+  const double now   = ros::Time::now().toSec();
+  const double t_now = now - local_data_.start_time_.toSec();
+  double       tm, tmp;
+  local_data_.position_traj_.getTimeSpan(tm, tmp);
+  for (int i = 0; i < map->dynPredNum(); ++i) {
+    int             id;
+    Eigen::Vector3d v;
+    if (!map->dynPredVel(i, id, v)) continue;
+    auto it = plan_dyn_vel_.find(id);
+    if (it == plan_dyn_vel_.end()) continue;
+    const double dv = (v - it->second).norm();
+    if (dv < pp_.dyn_dv_thresh_) continue;
+    double d = 1e9;
+    for (double ft = 0.0; ft <= pp_.dyn_dv_T_ && t_now + ft < local_data_.duration_; ft += 0.05)
+      d = std::min(d, map->dynPredDist(i, local_data_.position_traj_.evaluateDeBoor(tm + t_now + ft), now + ft));
+    if (d < pp_.dyn_dv_range_) {
+      id_out = id, dv_out = dv, d_out = d;
+      return true;
+    }
+  }
+  return false;
+}
+
 // !SECTION
 
 // SECTION kinodynamic replanning
@@ -248,6 +282,20 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
 
   kino_path_finder_->reset();
   kino_path_finder_->setTimeBase(new_start_time.toSec());   // [CD2 P3] t = 0 cua A* = luc quy dao moi bat dau
+
+  /* [CD2 13/11] Huong 5: sap giao cat vat can dong -> lap ke hoach o toc do thap (them thoi gian phan ung khi
+     vat can doi toc do). Khong ap dung khi khan cap: luc do A* can moi lua chon. */
+  bool cham = false;
+  if (pp_.dyn_slow_vel_ > 0.0 && !khan_cap_) {
+    double d = 1e9;
+    for (double t = 0.0; t <= pp_.dyn_slow_T_ + 1e-6; t += 0.1)
+      d = std::min(d, edt_environment_->sdf_map_->dynPredMinDist(start_pt + start_vel * t, new_start_time.toSec() + t));
+    cham = d < pp_.dyn_slow_range_;
+    if (cham)
+      cout << "[CD2 cham] sap giao cat (bay thang se cach vat can dong " << d << " m trong " << pp_.dyn_slow_T_
+           << " s) -> toc do toi da " << pp_.dyn_slow_vel_ << " m/s" << endl;
+  }
+  kino_path_finder_->setSlowVel(cham ? pp_.dyn_slow_vel_ : -1.0);
 
   int status = kino_path_finder_->search(start_pt, start_vel, start_acc, end_pt, end_vel, true);
 
@@ -474,6 +522,15 @@ bool FastPlannerManager::kinodynamicReplan(Eigen::Vector3d start_pt, Eigen::Vect
   pp_.time_search_   = t_search;
   pp_.time_optimize_ = t_opt;
   pp_.time_adjust_   = t_adjust;
+
+  /* [CD2 13/11] Huong 4: ghi van toc tung vat can ma ke hoach nay da dung */
+  if (pp_.dyn_dv_thresh_ > 0.0) {
+    plan_dyn_vel_.clear();
+    int             id;
+    Eigen::Vector3d v;
+    for (int i = 0; i < edt_environment_->sdf_map_->dynPredNum(); ++i)
+      if (edt_environment_->sdf_map_->dynPredVel(i, id, v)) plan_dyn_vel_[id] = v;
+  }
 
   publishTiming(t_search * 1000.0 + t_global_ms_, t_opt * 1000.0, true);   // [CD1] + A* toan cuc
   t_global_ms_ = 0.0;

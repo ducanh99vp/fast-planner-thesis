@@ -86,6 +86,10 @@ void SDFMap::initMap(ros::NodeHandle& nh) {
   node_.param("sdf_map/dyn_reflect", mp_.dyn_reflect_, false);   // [CD2 25/10] false = thang (nhu P2)
   node_.param("sdf_map/dyn_pred_T", mp_.dyn_pred_T_, -1.0);      // [CD2 P3] <= 0 = tat
   node_.param("sdf_map/dyn_pred_pair", mp_.dyn_pred_pair_, false);   // [CD2 P3 26/10]
+  node_.param("sdf_map/dyn_unc_acc", mp_.dyn_unc_acc_, -1.0);        // [CD2 13/11 huong 1] <= 0 = tat
+  node_.param("sdf_map/dyn_unc_max", mp_.dyn_unc_max_, 0.5);         // [CD2 13/11 huong 1]
+  if (mp_.dyn_unc_acc_ > 0.0)
+    ROS_WARN("[CD2 bat dinh] vung bat dinh doc huong chuyen dong: e(tau) = min(0.5 * %.2f * tau^2, %.2f m)", mp_.dyn_unc_acc_, mp_.dyn_unc_max_);
   /* [CD1] Ban do co tri nho. false = ban goc: moi chu ky xoa hop cuc bo roi chi chen diem dang thay. */
   node_.param("sdf_map/keep_memory", mp_.keep_memory_, false);
 
@@ -919,6 +923,7 @@ void SDFMap::updateDynPred() {
     st.push_back(St{&o, kv.first, 0, 0, o.c + v * (t0 - o.t), v});
     DynPred p;
     p.t0 = t0; p.dt = dt; p.type = o.type; p.half = 0.5 * o.scale;
+    p.id = kv.first; p.v0 = v;   // [CD2 13/11]
     p.c.push_back(st.back().c);
     dyn_pred_.push_back(p);
   }
@@ -973,13 +978,64 @@ bool SDFMap::dynPredAt(int i, double t_abs, Eigen::Vector3d& c, Eigen::Vector3d&
   return true;
 }
 
+/* [CD2 13/11 huong 1] VUNG BAT DINH. Du doan gia dinh vat can giu nguyen toc do; neu no doi toc voi gia toc toi da
+   a thi sau tau giay (tinh tu lan quan sat cuoi) vi tri that lech DOC HUONG CHUYEN DONG toi da 0.5 a tau^2, ve ca
+   hai phia (nhanh len / cham lai). Tra ve huong u (don vi, nam ngang) va do keo dai moi phia
+   e = min(0.5 a tau^2, tran). tau = 0 -> e = 0: vat can o hien tai dung kich thuoc that.
+   Huong lay tu chinh duong du doan tai thoi diem do (sau phan xa huong co the da doi); doan do dung yen thi lay
+   huong van toc ban dau; vat can chua tung chuyen dong -> khong keo dai (khong biet huong). */
+bool SDFMap::dynPredUnc(int i, double t_abs, Eigen::Vector3d& u, double& e) const {
+  if (mp_.dyn_unc_acc_ <= 0.0 || mp_.dyn_unc_max_ <= 0.0) return false;
+  if (i < 0 || i >= (int)dyn_pred_.size()) return false;
+  const DynPred& p   = dyn_pred_[i];
+  const double   tau = t_abs - p.t0;
+  if (tau <= 0.0) return false;
+  e = std::min(0.5 * mp_.dyn_unc_acc_ * tau * tau, mp_.dyn_unc_max_);
+  if (e < 1e-4) return false;
+  u.setZero();
+  if (p.c.size() >= 2) {
+    const int k = std::min((int)p.c.size() - 2, (int)std::floor(tau / p.dt));
+    u = p.c[k + 1] - p.c[k];
+  }
+  u(2) = 0.0;
+  if (u.norm() < 1e-6) u = Eigen::Vector3d(p.v0(0), p.v0(1), 0.0);
+  if (u.norm() < 1e-6) return false;
+  u.normalize();
+  return true;
+}
+
 /* Khoang cach CO DAU tu p toi mat vat can i tai t_abs (am = ben trong); hop: hop thang truc; tru:
-   ban kinh half.x trong mat phang + chieu cao half.z. grad: dao ham theo p (huong ra xa). */
+   ban kinh half.x trong mat phang + chieu cao half.z. grad: dao ham theo p (huong ra xa).
+   [CD2 13/11 huong 1] co vung bat dinh thi vat can la hinh QUET doc u trong [-e, e]: khoang cach toi hinh quet =
+   khoang cach toi vat can dat tai diem gan p nhat tren doan do. Tru: diem do la hinh chieu cua p len doan (dung
+   chinh xac). Hop di doc truc x / y: cong e vao nua canh truc do (chinh xac). Hop di cheo: tim tam phan (ham loi). */
 double SDFMap::dynPredDist(int i, const Eigen::Vector3d& p, double t_abs, Eigen::Vector3d* grad) const {
   Eigen::Vector3d c, h;
   int type;
   if (!dynPredAt(i, t_abs, c, h, type)) return 1e9;
-  const Eigen::Vector3d d = p - c;
+  Eigen::Vector3d d = p - c;
+  Eigen::Vector3d un;
+  double          en;
+  if (dynPredUnc(i, t_abs, un, en)) {
+    if (type == 3) {
+      d -= std::max(-en, std::min(en, d.dot(un))) * un;
+    } else if (std::abs(un(0)) > 0.999) {
+      h(0) += en;
+    } else if (std::abs(un(1)) > 0.999) {
+      h(1) += en;
+    } else {
+      auto f = [&](double s) {
+        const Eigen::Vector3d q = (d - s * un).cwiseAbs() - h;
+        return q.cwiseMax(0.0).norm() + std::min(q.maxCoeff(), 0.0);
+      };
+      double lo = -en, hi = en;
+      for (int it = 0; it < 16; ++it) {
+        const double m1 = lo + (hi - lo) / 3.0, m2 = hi - (hi - lo) / 3.0;
+        if (f(m1) <= f(m2)) hi = m2; else lo = m1;
+      }
+      d -= 0.5 * (lo + hi) * un;
+    }
+  }
   if (type == 3) {
     const double rxy = d.head<2>().norm();
     const double qr = rxy - h(0), qz = std::abs(d(2)) - h(2);

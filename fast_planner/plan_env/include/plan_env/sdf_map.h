@@ -112,6 +112,8 @@ struct MappingParameters {
   bool dyn_reflect_;             // [CD2 25/10] du doan biet tuong: duong du doan cham vat can tinh thi phan xa
   double dyn_pred_T_;            // [CD2 P3] chan troi bo dem du doan theo thoi gian (s); <= 0 = tat
   bool dyn_pred_pair_;           // [CD2 P3 26/10] du doan hai vat can dong dung nhau -> ca hai dao chieu
+  double dyn_unc_acc_;           // [CD2 13/11 huong 1] gia toc lon nhat gia dinh cua vat can (m/s^2); <= 0 = tat
+  double dyn_unc_max_;           // [CD2 13/11 huong 1] tran cua vung bat dinh moi phia (m)
   bool keep_memory_;             // [CD1] ban do co tri nho: khong xoa vat can tinh da thay
   bool show_esdf_time_, show_occ_time_;
 
@@ -208,6 +210,14 @@ public:
   bool   dynPredAt(int i, double t_abs, Eigen::Vector3d& c, Eigen::Vector3d& half, int& type) const;
   double dynPredDist(int i, const Eigen::Vector3d& p, double t_abs, Eigen::Vector3d* grad = nullptr) const;
   double dynPredMinDist(const Eigen::Vector3d& p, double t_abs) const;
+  bool   dynPredUnc(int i, double t_abs, Eigen::Vector3d& u, double& e) const;   // [CD2 13/11 huong 1]
+  /* [CD2 13/11] so vat can dang du doan; ma + van toc (xy) ma ban du doan hien tai dung cho vat can thu i */
+  bool dynPredVel(int i, int& id, Eigen::Vector3d& v) const {
+    if (i < 0 || i >= (int)dyn_pred_.size()) return false;
+    id = dyn_pred_[i].id;
+    v  = dyn_pred_[i].v0;
+    return true;
+  }
   /* [CD2 09/11] Khoang cach tu pos toi MAT GAN NHAT cua o bi chiem THAT (chua phinh) trong ban kinh r_max;
      khong co o nao thi tra r_max. Diem dam may nam trong o nen day la can duoi cua khoang cach toi diem
      that (sai toi da ~1 o, ve phia an toan) - khac ESDF tren ban do phinh, luong tu 0.1*sqrt(n). */
@@ -323,6 +333,8 @@ private:
     std::vector<Eigen::Vector3d> c;
     Eigen::Vector3d half;
     int type;
+    int id = -1;                                   // [CD2 13/11] ma vat can
+    Eigen::Vector3d v0 = Eigen::Vector3d::Zero();  // [CD2 13/11] van toc dung de du doan
   };
   std::vector<DynPred> dyn_pred_;
   void updateDynPred();                                                 // [CD2 P3]

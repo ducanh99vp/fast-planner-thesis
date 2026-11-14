@@ -102,8 +102,9 @@ private:
      replan_latency_ 0.2 s: moi 0.05 s tre mat ~0.04 m khoang ne). <= 0 = tat (dung replan_latency_). */
   double replan_latency_em_ = -1.0;
   bool   khan_cap_ = false;
+  bool   som_ = false;   // [CD2 13/11] huong 4: lap lai vi vat can doi van toc -> cung dung tre ngan, KHONG noi bien A*
   double treLapKeHoach() const {
-    return (khan_cap_ && replan_latency_em_ > 0.0) ? replan_latency_em_ : replan_latency_;
+    return ((khan_cap_ || som_) && replan_latency_em_ > 0.0) ? replan_latency_em_ : replan_latency_;
   }
   double waypoints_[50][3];
   int waypoint_num_;
