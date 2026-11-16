@@ -1,4 +1,4 @@
-# Kết quả: vật cản động vận tốc không đều (13–14/11)
+# Kết quả: vật cản động vận tốc không đều (13–16/11)
 
 ## Kịch bản
 
@@ -26,13 +26,16 @@
 | k3 | KU | không đều | 1–10 / 1–40 | 80/80 | 40/40 | 120/120 |
 | k4 | KU | không đều | 11–20 / 41–80 (hạt mới) | 80/80 | 40/40 | 120/120 |
 | k5 | KU | đều | 1–10 / 1–40 | 80/80 | 40/40 | 120/120 |
+| k6 | KU | đều | 11–20 / 41–80 (hạt mới) | 80/80 | 40/40 | 120/120 |
 
 - k1 so với f7 (cùng hạt): Fisher p = 0,029. Vận tốc không đều làm bản cuối kém đi.
 - k2 so với k1: p = 1,0. Hướng 4 không cải thiện.
 - k3 so với k1 (cùng hạt, cùng kịch bản): p = 0,029.
 - KU gộp k3 + k4: 240/240, khoảng tin cậy 95 % (Clopper-Pearson) 98,5–100 %.
 - k5 so với f7 (cùng hạt, cùng vận tốc đều): 120/120 so với 120/120, p = 1,0. Vùng bất định không làm mất an toàn ở vận tốc đều.
-- KU gộp cả hai kịch bản (k3 + k4 + k5): 360/360, khoảng tin cậy 95 % là 99,0–100 %.
+- k6 so với f8 + f9 (cùng hạt, cùng vận tốc đều): 120/120 so với 120/120, p = 1,0.
+- KU ở vận tốc đều, gộp k5 + k6: 240/240, khoảng tin cậy 95 % là 98,5–100 %.
+- KU gộp cả hai kịch bản (k3 + k4 + k5 + k6): 480/480, khoảng tin cậy 95 % là 99,2–100 %.
 
 ## Khoảng cách nhỏ nhất (m)
 
@@ -43,7 +46,9 @@
 | k3 (KU) | 0,337 | 0,366 | 0,304 |
 | k4 (KU) | 0,288 | 0,389 | 0,301 |
 | k5 (KU, vận tốc đều) | 0,362 | 0,438 | 0,342 |
+| k6 (KU, vận tốc đều, hạt mới) | 0,403 | 0,422 | 0,299 |
 | f7 (K, vận tốc đều) | 0,272 | 0,271 | 0,310 |
+| f8 + f9 (K, vận tốc đều, hạt mới) | 0,327 | 0,302 | 0,276 |
 
 ## Cái giá của vùng bất định
 
@@ -55,10 +60,12 @@ So theo từng cặp cùng hạt (Wilcoxon), chênh lệch trung vị:
 | k3 (KU, không đều) so với f7 (K, đều) | +0,012 (p < 0,001) | +0,54 s (p < 0,001) |
 | k4 (KU, không đều) so với f8 + f9 (K, đều) | +0,010 (p < 0,001) | +0,54 s (p < 0,001) |
 | k5 (KU, đều) so với f7 (K, đều) | +0,009 (p < 0,001) | +0,53 s (p < 0,001) |
+| k6 (KU, đều) so với f8 + f9 (K, đều) | +0,010 (p < 0,001) | +0,35 s (p < 0,001) |
 
-η trung vị của KU: trong nhà 1,014 (k3), 1,020 (k4), 1,012 (k5); ngoài trời 1,030 (k3), 1,029 (k4), 1,025 (k5).
+η trung vị của KU: trong nhà 1,014 (k3), 1,020 (k4), 1,012 (k5), 1,010 (k6); ngoài trời 1,030 (k3), 1,029 (k4), 1,025 (k5), 1,035 (k6).
 Ở vận tốc đều (k5), T_f trung bình trong nhà 21,33 s (f7: 20,66 s), ngoài trời 32,18 s (f7: 31,03 s).
 Riêng ngoài trời, T_f tăng khoảng 1,0 s (k3: p 0,01; k4: p 0,037).
+k6 tách riêng: trong nhà η +0,009 (p 0,0015), T_f +0,27 s (p 0,008); ngoài trời η +0,025 (p 0,006), T_f +1,24 s (p < 0,001). T_f trung bình trong nhà 21,31 s (f8: 20,72 s), ngoài trời 32,78 s (f9: 30,88 s).
 
 ## Ghi chú và hạn chế
 
@@ -68,11 +75,12 @@ Riêng ngoài trời, T_f tăng khoảng 1,0 s (k3: p 0,01; k4: p 0,037).
 - k4: OUT hạt 43 nghiêng 26,5° (vẫn an toàn); A* thất bại 11 lần ở 5 lượt ngoài trời (k3: 1 lần).
 - 14/11 chọn cách B: MỘT cấu hình (KU) cho cả vận tốc đều và không đều; k5 là phép đo KU ở vận tốc đều.
 - k5: OUT hạt 32 nghiêng 30,9° (vẫn an toàn, 0,51 m), chưa phân tích.
-- KU ở vận tốc đều mới đo trên hạt 1–10 / 1–40 (chưa đo hạt 11–20 / 41–80). CHƯA thử vật cản đổi hướng bất kỳ.
-- Mã của ngày 13–14/11 chưa commit.
+- 16/11 đợt k6 đo KU ở vận tốc đều trên hạt 11–20 / 41–80: 120/120. OUT hạt 61 nghiêng 30,8° (vẫn an toàn, 0,428 m), chưa phân tích; A* thất bại 10 lần ở 3 lượt ngoài trời (f9: 0 lần).
+- CHƯA thử vật cản đổi hướng bất kỳ.
+- Mã của ngày 13–14/11 đã commit ở 9a15038.
 
 ## Dữ liệu
 
-- CSV: `results/raw/cd2_in_<đợt>_<tuyến>_<cấu hình>_<ngày>.csv`, `results/raw/cd2_out_<đợt>_<cấu hình>_<ngày>.csv` (k1, k2, k3: 20261113; k4, k5: 20261114).
+- CSV: `results/raw/cd2_in_<đợt>_<tuyến>_<cấu hình>_<ngày>.csv`, `results/raw/cd2_out_<đợt>_<cấu hình>_<ngày>.csv` (k1, k2, k3: 20261113; k4, k5: 20261114; k6: 20261116).
 - Bag và log: `~/cd2_chan_doan_16-10/bag_b1/`, `~/cd2_chan_doan_16-10/runs/`.
 - So sánh: `~/cd2_chan_doan_16-10/scripts/so_sanh_dot.py`; phân tích từng lượt: `phan_tich_kd.py`.
