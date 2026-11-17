@@ -70,6 +70,29 @@ vector<std::mt19937> spd_eng;
 vector<double> spd_cur, spd_goal, spd_wait;
 inline double spdOf(int i) { return _var_speed ? spd_cur[i] : _vel; }
 
+/* [CD2 16/11] DOI HUONG BAT KY (buoc 2). Moi vat can co DONG HO RIENG: cho mot khoang ngau
+   nhien [dir_tmin, dir_tmax] s, het thi boc HUONG DICH moi deu trong 0-360 do va boc khoang
+   cho tiep theo. Vat can RE DAN ve huong dich voi gia toc ngang <= dir_acc, tuc toc do re
+   <= dir_acc / toc do (0,8 m/s va 1,0 m/s2 -> 72 do/s); khong be goc tuc thoi. Re xong thi
+   di thang toi lan doi ke tiep. Huong ban dau cung boc ngau nhien.
+   Khi van toc bi doi tu ben ngoai (cham vat can tinh -> quay dau; cham vat can dong khac hoac
+   bien -> lat mot thanh phan; go ket) thi HUONG DICH dat lai = huong moi: vat can di thang
+   ra xa, khong re nguoc vao cho vua cham.
+   Hop KHONG tu xoay (yaw = 0) de khop hop song song truc cua bo du doan.
+   Bo sinh so rieng tung vat can gieo tu (seed, chi so): vi tri sinh vat can KHONG doi so voi
+   cac dot truoc cung hat. var_dir = false: khong rut so nao, hanh vi giu NGUYEN.
+   Luu y: bat cung var_speed thi gia toc doc (spd_acc) va ngang (dir_acc) bi chan RIENG,
+   gia toc tong co the toi sqrt(2) lan. */
+bool   _var_dir = false;
+double _dir_tmin, _dir_tmax, _dir_acc;
+vector<std::mt19937> dir_eng;
+vector<double> dir_cur, dir_goal, dir_wait;
+inline double wrapPi(double a) {
+  while (a > M_PI) a -= 2.0 * M_PI;
+  while (a < -M_PI) a += 2.0 * M_PI;
+  return a;
+}
+
 /* [CD2] Nay khoi VAT CAN TINH. Ban goc chi nay o bien ban do va khi hai vat can
    dong cham nhau; no di XUYEN qua cot va vanh tron. Ta nap dam may diem tinh vao
    mot tap o luoi roi kiem moi khung hinh. */
@@ -218,6 +241,10 @@ int main(int argc, char** argv) {
   node.param("obj_generator/spd_tmin",  _spd_tmin,  1.0);
   node.param("obj_generator/spd_tmax",  _spd_tmax,  3.0);
   node.param("obj_generator/spd_acc",   _spd_acc,   1.0);
+  node.param("obj_generator/var_dir",   _var_dir,   false);   // [CD2 16/11]
+  node.param("obj_generator/dir_tmin",  _dir_tmin,  1.0);
+  node.param("obj_generator/dir_tmax",  _dir_tmax,  3.0);
+  node.param("obj_generator/dir_acc",   _dir_acc,   1.0);
   /* [CD2] Gieo hat. Ban goc dung random_device nen MOI luot chay dat vat can
      o cho khac nhau -> khong the so cap hai phuong an tren cung kich ban.
      seed < 0 = giu hanh vi ngau nhien cu. */
@@ -370,6 +397,23 @@ int main(int argc, char** argv) {
              _spd_min, _spd_max, _spd_tmin, _spd_tmax, _spd_acc);
   }
 
+  /* [CD2 16/11] doi huong bat ky: bo sinh so rieng tung vat can, huong ban dau ngau nhien */
+  if (_var_dir) {
+    for (int i = 0; i < obj_num; ++i) {
+      std::seed_seq sq{(unsigned)(_seed >= 0 ? _seed : (int)rd()), (unsigned)i, 1611u};
+      dir_eng.emplace_back(sq);
+      const double th = uniform_real_distribution<double>(-M_PI, M_PI)(dir_eng.back());
+      dir_cur.push_back(th);
+      dir_goal.push_back(th);
+      dir_wait.push_back(uniform_real_distribution<double>(_dir_tmin, _dir_tmax)(dir_eng.back()));
+      const Eigen::Vector3d v(spdOf(i) * cos(th), spdOf(i) * sin(th), 0.0);
+      obj_models[i].setVelocity(v(0), v(1), v(2));
+      obj_models[i].setInput(v);
+    }
+    ROS_INFO("[dynamic]: DOI HUONG BAT KY: huong dich moi sau %.1f-%.1f s, gia toc ngang <= %.2f m/s2",
+             _dir_tmin, _dir_tmax, _dir_acc);
+  }
+
   time_update = ros::Time::now();
   time_change = ros::Time::now();
   objs_ready  = true;   // [CD2] tu day timer moi duoc phep chay
@@ -415,7 +459,9 @@ void updateCallback(const ros::TimerEvent& e) {
       vz = 0.0;
       yd = rand_yaw_dot(eng);
 
-      if (_axis_only) {
+      if (_var_dir) {
+        /* [CD2 16/11] huong do dong ho rieng cua tung vat can quyet dinh */
+      } else if (_axis_only) {
         /* [CD2] giu tren dung truc cua no, chi doi dau */
         const double sgn = (vx >= 0.0) ? 1.0 : -1.0;
         obj_models[i].setInput(axis_of[i] == 0 ? Eigen::Vector3d(sgn * spdOf(i), 0.0, 0.0)
@@ -445,13 +491,36 @@ void updateCallback(const ros::TimerEvent& e) {
       const double step = _spd_acc * dt;
       spd_cur[i] += std::max(-step, std::min(step, spd_goal[i] - spd_cur[i]));
       Eigen::Vector3d v = obj_models[i].getVelocity();
-      if (_axis_only) {
+      if (_axis_only && !_var_dir) {
         const double sgn = (v(axis_of[i]) >= 0.0) ? 1.0 : -1.0;
         v = (axis_of[i] == 0) ? Eigen::Vector3d(sgn * spd_cur[i], 0.0, 0.0)
                               : Eigen::Vector3d(0.0, sgn * spd_cur[i], 0.0);
       } else if (v.norm() > 1e-6) {
         v *= spd_cur[i] / v.norm();
       }
+      obj_models[i].setVelocity(v(0), v(1), v(2));
+      obj_models[i].setInput(v);
+    }
+
+    /* [CD2 16/11] doi huong bat ky: xem chu thich o khai bao _var_dir */
+    if (_var_dir) {
+      Eigen::Vector3d v = obj_models[i].getVelocity();
+      if (v.head<2>().norm() > 1e-6) {
+        const double th_now = atan2(v(1), v(0));
+        if (fabs(wrapPi(th_now - dir_cur[i])) > 1e-3) {   // bi doi tu ngoai (cham, bien, go ket)
+          dir_cur[i]  = th_now;
+          dir_goal[i] = th_now;
+        }
+      }
+      dir_wait[i] -= dt;
+      while (dir_wait[i] <= 0.0) {
+        dir_goal[i] = uniform_real_distribution<double>(-M_PI, M_PI)(dir_eng[i]);
+        dir_wait[i] += uniform_real_distribution<double>(_dir_tmin, _dir_tmax)(dir_eng[i]);
+      }
+      const double spd  = spdOf(i);
+      const double step = _dir_acc / std::max(spd, 0.05) * dt;
+      dir_cur[i] = wrapPi(dir_cur[i] + std::max(-step, std::min(step, wrapPi(dir_goal[i] - dir_cur[i]))));
+      v = Eigen::Vector3d(spd * cos(dir_cur[i]), spd * sin(dir_cur[i]), 0.0);
       obj_models[i].setVelocity(v(0), v(1), v(2));
       obj_models[i].setInput(v);
     }
@@ -465,7 +534,7 @@ void updateCallback(const ros::TimerEvent& e) {
     if (_bounce_static && hitStatic(obj_models[i].getPosition(), obj_models[i].getScale())) {
       obj_models[i].setPosition(p_prev);
       Eigen::Vector3d v = obj_models[i].getVelocity();
-      if (_axis_only) {
+      if (_axis_only && !_var_dir) {
         const double sgn = (v(axis_of[i]) >= 0.0) ? -1.0 : 1.0;
         v = (axis_of[i] == 0) ? Eigen::Vector3d(sgn * spdOf(i), 0.0, 0.0)
                               : Eigen::Vector3d(0.0, sgn * spdOf(i), 0.0);
@@ -490,9 +559,15 @@ void updateCallback(const ros::TimerEvent& e) {
         stuck_since[i] = tn;
       } else if (stuck_since[i] > 0.0 && tn - stuck_since[i] > _unstick) {
         Eigen::Vector3d v = obj_models[i].getVelocity();
-        const double sgn = (v(axis_of[i]) >= 0.0) ? -1.0 : 1.0;
-        v = (axis_of[i] == 0) ? Eigen::Vector3d(sgn * spdOf(i), 0.0, 0.0)
-                              : Eigen::Vector3d(0.0, sgn * spdOf(i), 0.0);
+        if (_var_dir) {
+          /* [CD2 16/11] quay dau co the van ket: boc mot huong moi */
+          const double th = uniform_real_distribution<double>(-M_PI, M_PI)(dir_eng[i]);
+          v = Eigen::Vector3d(spdOf(i) * cos(th), spdOf(i) * sin(th), 0.0);
+        } else {
+          const double sgn = (v(axis_of[i]) >= 0.0) ? -1.0 : 1.0;
+          v = (axis_of[i] == 0) ? Eigen::Vector3d(sgn * spdOf(i), 0.0, 0.0)
+                                : Eigen::Vector3d(0.0, sgn * spdOf(i), 0.0);
+        }
         obj_models[i].setVelocity(v(0), v(1), v(2));
         obj_models[i].setInput(v);
         stuck_since[i] = tn;

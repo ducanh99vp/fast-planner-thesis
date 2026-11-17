@@ -114,6 +114,8 @@ struct MappingParameters {
   bool dyn_pred_pair_;           // [CD2 P3 26/10] du doan hai vat can dong dung nhau -> ca hai dao chieu
   double dyn_unc_acc_;           // [CD2 13/11 huong 1] gia toc lon nhat gia dinh cua vat can (m/s^2); <= 0 = tat
   double dyn_unc_max_;           // [CD2 13/11 huong 1] tran cua vung bat dinh moi phia (m)
+  bool dyn_reflect_both_;        // [CD2 17/11 buoc 2] du doan phan xa thi GIU CA nhanh di thang (vat can dang re co the khong cham)
+  bool dyn_unc_iso_;             // [CD2 17/11 buoc 2] true = vung bat dinh hinh TRON ban kinh e (moi huong nam ngang)
   bool keep_memory_;             // [CD1] ban do co tri nho: khong xoa vat can tinh da thay
   bool show_esdf_time_, show_occ_time_;
 

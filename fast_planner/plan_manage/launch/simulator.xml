@@ -40,6 +40,11 @@
   <arg name="dyn_spd_tmin" default="1.0"/>
   <arg name="dyn_spd_tmax" default="3.0"/>
   <arg name="dyn_spd_acc" default="1.0"/>
+  <!-- [CD2 16/11] DOI HUONG BAT KY (dyn_var_dir:=true): huong dich moi sau [dir_tmin, dir_tmax] s, re dan voi gia toc ngang <= dir_acc -->
+  <arg name="dyn_var_dir" default="false"/>
+  <arg name="dyn_dir_tmin" default="1.0"/>
+  <arg name="dyn_dir_tmax" default="3.0"/>
+  <arg name="dyn_dir_acc" default="1.0"/>
   <!-- [CD2] chieu cao THAP NHAT cua cot tinh. Goc HKUST = 0.0: moi cot nho cao
        ngau nhien 0-3 m nen UAV bay VUOT qua phan lon. 3.0 = moi cot cao 3 m,
        vuot tran ao 2.5 m -> buoc phai lach ngang, giong trong nha. -->
@@ -171,6 +176,10 @@
     <param name="obj_generator/spd_tmin" value="$(arg dyn_spd_tmin)" type="double"/>
     <param name="obj_generator/spd_tmax" value="$(arg dyn_spd_tmax)" type="double"/>
     <param name="obj_generator/spd_acc" value="$(arg dyn_spd_acc)" type="double"/>
+    <param name="obj_generator/var_dir" value="$(arg dyn_var_dir)" type="bool"/>
+    <param name="obj_generator/dir_tmin" value="$(arg dyn_dir_tmin)" type="double"/>
+    <param name="obj_generator/dir_tmax" value="$(arg dyn_dir_tmax)" type="double"/>
+    <param name="obj_generator/dir_acc" value="$(arg dyn_dir_acc)" type="double"/>
     <param name="obj_generator/yaw_dot"   value="0.0"/>
     <param name="obj_generator/acc_r1"    value="0.0"/>
     <param name="obj_generator/acc_r2"    value="0.0"/>

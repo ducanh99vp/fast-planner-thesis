@@ -88,8 +88,12 @@ void SDFMap::initMap(ros::NodeHandle& nh) {
   node_.param("sdf_map/dyn_pred_pair", mp_.dyn_pred_pair_, false);   // [CD2 P3 26/10]
   node_.param("sdf_map/dyn_unc_acc", mp_.dyn_unc_acc_, -1.0);        // [CD2 13/11 huong 1] <= 0 = tat
   node_.param("sdf_map/dyn_unc_max", mp_.dyn_unc_max_, 0.5);         // [CD2 13/11 huong 1]
+  node_.param("sdf_map/dyn_unc_iso", mp_.dyn_unc_iso_, false);       // [CD2 17/11 buoc 2]
+  node_.param("sdf_map/dyn_reflect_both", mp_.dyn_reflect_both_, false);   // [CD2 17/11 buoc 2]
+  if (mp_.dyn_reflect_both_) ROS_WARN("[CD2 hai nhanh] du doan phan xa o vat can tinh: giu ca nhanh di thang");
   if (mp_.dyn_unc_acc_ > 0.0)
-    ROS_WARN("[CD2 bat dinh] vung bat dinh doc huong chuyen dong: e(tau) = min(0.5 * %.2f * tau^2, %.2f m)", mp_.dyn_unc_acc_, mp_.dyn_unc_max_);
+    ROS_WARN("[CD2 bat dinh] vung bat dinh %s: e(tau) = min(0.5 * %.2f * tau^2, %.2f m)",
+             mp_.dyn_unc_iso_ ? "HINH TRON (moi huong nam ngang)" : "doc huong chuyen dong", mp_.dyn_unc_acc_, mp_.dyn_unc_max_);
   /* [CD1] Ban do co tri nho. false = ban goc: moi chu ky xoa hop cuc bo roi chi chen diem dang thay. */
   node_.param("sdf_map/keep_memory", mp_.keep_memory_, false);
 
@@ -902,7 +906,12 @@ bool SDFMap::footHitsStatic(const DynObjState& o, const Eigen::Vector3d& c) {
    LinearObjModel::collide cua obj_generator) thi ca hai dao chieu tren truc lun it nhat, chi khi
    chung dang lai gan nhau (khong dao di dao lai khi con chong), toi da 2 lan moi vat can.
    I3T2B hat 2: hop lan giua dung tru di nguoc chieu, bat nguoc vao UAV dang bam sau lung no.
-   De so cap duoc, moi vat can dung chung moc t0 = luc quan sat cu nhat (lech nhau vai ms). */
+   De so cap duoc, moi vat can dung chung moc t0 = luc quan sat cu nhat (lech nhau vai ms).
+   [CD2 17/11 buoc 2] dyn_reflect_both_: phan xa o vat can tinh chi chac khi vat can di THANG. Vat can dang re co
+   the truot qua canh cot ma khong cham (g2 OUT 28: du doan "se bat lai" 2 lan, that te di tiep vao UAV, planner
+   khong canh bao toi 0,56 s truoc). Vi vay o lan phan xa DAU TIEN cua moi vat can, them mot NHANH PHU di thang
+   tiep (khong phan xa, khong xet dung nhau), la mot muc rieng trong dyn_pred_ dat SAU cac muc chinh: moi noi dung
+   deu lay min tren tat ca cac muc nen ca hai nhanh deu la vat can. Truoc diem tach hai nhanh trung nhau. */
 void SDFMap::updateDynPred() {
   dyn_pred_.clear();
   if (mp_.dyn_pred_T_ <= 0.0 || dyn_objs_.empty()) return;
@@ -929,6 +938,8 @@ void SDFMap::updateDynPred() {
   }
   const int n = (int)std::ceil(((tnow - t0) + mp_.dyn_pred_T_) / dt);
   std::vector<Eigen::Vector3d> prev(st.size());
+  struct Nhanh { size_t src; int k0; Eigen::Vector3d c, v; std::vector<Eigen::Vector3d> path; };   // [CD2 17/11]
+  std::vector<Nhanh> nhanh;
   for (int k = 1; k <= n; ++k) {
     for (size_t i = 0; i < st.size(); ++i) {
       St& s = st[i];
@@ -938,6 +949,7 @@ void SDFMap::updateDynPred() {
         if (s.n_px < 2) {
           ROS_INFO_THROTTLE(0.5, "[CD2 P3] du doan theo thoi gian: vat can %d cham vat can tinh tai (%.2f, %.2f) sau %.2f s -> phan xa",
                             s.id, nx(0), nx(1), k * dt - (tnow - t0));
+          if (mp_.dyn_reflect_both_ && s.n_px == 0) nhanh.push_back(Nhanh{i, k, nx, s.v, {}});   // nhanh di thang, tu buoc k
           ++s.n_px; s.v = -s.v; nx = s.c + s.v * dt;
           if (footHitsStatic(*s.o, nx)) nx = s.c;
         } else {
@@ -964,6 +976,16 @@ void SDFMap::updateDynPred() {
           ++a.n_pair; ++b.n_pair;
         }
     for (size_t i = 0; i < st.size(); ++i) dyn_pred_[i].c.push_back(st[i].c);
+    for (auto& b : nhanh) {
+      if (b.k0 < k) b.c += b.v * dt;
+      b.path.push_back(b.c);
+    }
+  }
+  for (const auto& b : nhanh) {
+    DynPred p = dyn_pred_[b.src];
+    p.c.resize(b.k0);                                   // c[0 .. k0-1]: chung voi nhanh chinh
+    p.c.insert(p.c.end(), b.path.begin(), b.path.end());   // c[k0 .. n]: di thang
+    dyn_pred_.push_back(p);
   }
 }
 
@@ -1008,7 +1030,11 @@ bool SDFMap::dynPredUnc(int i, double t_abs, Eigen::Vector3d& u, double& e) cons
    ban kinh half.x trong mat phang + chieu cao half.z. grad: dao ham theo p (huong ra xa).
    [CD2 13/11 huong 1] co vung bat dinh thi vat can la hinh QUET doc u trong [-e, e]: khoang cach toi hinh quet =
    khoang cach toi vat can dat tai diem gan p nhat tren doan do. Tru: diem do la hinh chieu cua p len doan (dung
-   chinh xac). Hop di doc truc x / y: cong e vao nua canh truc do (chinh xac). Hop di cheo: tim tam phan (ham loi). */
+   chinh xac). Hop di doc truc x / y: cong e vao nua canh truc do (chinh xac). Hop di cheo: tim tam phan (ham loi).
+   [CD2 17/11 buoc 2] dyn_unc_iso: vat can co the RE, sai so sau tau giay <= 0.5 a tau^2 theo MOI huong nam ngang
+   (gia toc bi chan boi a) -> vung bat dinh la hinh TRON ban kinh e, vat can = tong Minkowski cua hinh that voi
+   dia nam ngang ban kinh e. Tru: ban kinh + e. Hop: khoang cach 2D co dau toi day chu nhat, tru e (hop bo tron
+   goc), roi ghep voi chieu cao nhu tru. Ca hai chinh xac; e = 0 thi trung cong thuc cu. Chieu cao khong doi. */
 double SDFMap::dynPredDist(int i, const Eigen::Vector3d& p, double t_abs, Eigen::Vector3d* grad) const {
   Eigen::Vector3d c, h;
   int type;
@@ -1016,7 +1042,29 @@ double SDFMap::dynPredDist(int i, const Eigen::Vector3d& p, double t_abs, Eigen:
   Eigen::Vector3d d = p - c;
   Eigen::Vector3d un;
   double          en;
-  if (dynPredUnc(i, t_abs, un, en)) {
+  const bool unc = dynPredUnc(i, t_abs, un, en);
+  if (unc && mp_.dyn_unc_iso_) {
+    if (type == 3) {
+      h(0) += en;                      // tru: roi xuong nhanh tru ben duoi voi ban kinh lon hon
+    } else {
+      const Eigen::Vector2d q2 = d.head<2>().cwiseAbs() - h.head<2>();
+      const Eigen::Vector2d qp2 = q2.cwiseMax(0.0);
+      const double out2 = qp2.norm();
+      int m2; q2.maxCoeff(&m2);
+      const double qr = out2 + std::min(q2(m2), 0.0) - en;   // khoang cach ngang co dau toi day da no e
+      const double qz = std::abs(d(2)) - h(2);
+      const double out = std::sqrt(std::pow(std::max(qr, 0.0), 2) + std::pow(std::max(qz, 0.0), 2));
+      if (grad) {
+        Eigen::Vector3d er(0, 0, 0);
+        if (out2 > 1e-9) { er(0) = (d(0) >= 0 ? 1 : -1) * qp2(0) / out2; er(1) = (d(1) >= 0 ? 1 : -1) * qp2(1) / out2; }
+        else er(m2) = d(m2) >= 0 ? 1.0 : -1.0;
+        const Eigen::Vector3d ez(0, 0, d(2) >= 0.0 ? 1.0 : -1.0);
+        if (out > 1e-9) *grad = (std::max(qr, 0.0) * er + std::max(qz, 0.0) * ez) / out;
+        else *grad = (qr > qz) ? er : ez;
+      }
+      return out + std::min(std::max(qr, qz), 0.0);
+    }
+  } else if (unc) {
     if (type == 3) {
       d -= std::max(-en, std::min(en, d.dot(un))) * un;
     } else if (std::abs(un(0)) > 0.999) {

@@ -68,6 +68,8 @@
   <arg name="dyn_dv" default="-1.0"/>         <!-- [CD2 13/11] vat can doi van toc qua nguong nay (m/s) -> lap lai ngay -->
   <arg name="dyn_unc_acc" default="-1.0"/>   <!-- [CD2 13/11 huong 1] gia toc toi da gia dinh cua vat can (m/s^2); <= 0 = tat vung bat dinh -->
   <arg name="dyn_unc_max" default="0.5"/>    <!-- [CD2 13/11 huong 1] tran do keo dai moi phia (m) -->
+  <arg name="dyn_unc_iso" default="false"/>  <!-- [CD2 17/11 buoc 2] true = vung bat dinh hinh TRON ban kinh e (vat can co the re) -->
+  <arg name="dyn_reflect_both" default="false"/>  <!-- [CD2 17/11 buoc 2] du doan phan xa o vat can tinh: giu ca nhanh di thang -->
   <arg name="dyn_slow_vel" default="-1.0"/>   <!-- [CD2 13/11] sap giao cat vat can dong -> toc do toi da (m/s) -->
   <!-- [CD1] ban do co tri nho + dan duong toan cuc (false = ban goc) -->
   <arg name="keep_memory"     default="false"/>
@@ -188,6 +190,8 @@
     <param name="sdf_map/dyn_pred_pair" value="$(arg dyn_pair)" type="bool"/>   <!-- [CD2 P3 26/10] -->
     <param name="sdf_map/dyn_unc_acc" value="$(arg dyn_unc_acc)" type="double"/>   <!-- [CD2 13/11 huong 1] -->
     <param name="sdf_map/dyn_unc_max" value="$(arg dyn_unc_max)" type="double"/>
+    <param name="sdf_map/dyn_unc_iso" value="$(arg dyn_unc_iso)" type="bool"/>   <!-- [CD2 17/11 buoc 2] -->
+    <param name="sdf_map/dyn_reflect_both" value="$(arg dyn_reflect_both)" type="bool"/>
     <param name="astar/dyn_soft_w" value="$(arg guide_dyn_soft)" type="double"/>   <!-- [CD2 P3L] -->
     <param name="fsm/guide_dyn_soft" value="$(eval arg('guide_dyn_soft') > 0)" type="bool"/>
     <param name="search/dyn_time" value="true" type="bool" if="$(arg p3)"/>

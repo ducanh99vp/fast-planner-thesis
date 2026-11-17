@@ -31,6 +31,11 @@
   <arg name="dyn_spd_tmin" default="1.0"/>
   <arg name="dyn_spd_tmax" default="3.0"/>
   <arg name="dyn_spd_acc" default="1.0"/>
+  <!-- [CD2 16/11] DOI HUONG BAT KY (dyn_var_dir:=true): huong dich moi sau [dir_tmin, dir_tmax] s, re dan voi gia toc ngang <= dir_acc -->
+  <arg name="dyn_var_dir" default="false"/>
+  <arg name="dyn_dir_tmin" default="1.0"/>
+  <arg name="dyn_dir_tmax" default="3.0"/>
+  <arg name="dyn_dir_acc" default="1.0"/>
   <arg name="p_hmin" default="0.0"/>
   
   <arg name="map_resolution" default="0.1"/>
@@ -76,6 +81,8 @@
   <arg name="dyn_dv" default="-1.0"/>         <!-- [CD2 13/11] vat can doi van toc qua nguong nay (m/s) -> lap lai ngay -->
   <arg name="dyn_unc_acc" default="-1.0"/>   <!-- [CD2 13/11 huong 1] gia toc toi da gia dinh cua vat can (m/s^2); <= 0 = tat vung bat dinh -->
   <arg name="dyn_unc_max" default="0.5"/>    <!-- [CD2 13/11 huong 1] tran do keo dai moi phia (m) -->
+  <arg name="dyn_unc_iso" default="false"/>  <!-- [CD2 17/11 buoc 2] true = vung bat dinh hinh TRON ban kinh e (vat can co the re) -->
+  <arg name="dyn_reflect_both" default="false"/>  <!-- [CD2 17/11 buoc 2] du doan phan xa o vat can tinh: giu ca nhanh di thang -->
   <arg name="dyn_slow_vel" default="-1.0"/>   <!-- [CD2 13/11] sap giao cat vat can dong -> toc do toi da (m/s) -->
   <arg name="keep_memory" default="false"/>      <!-- [CD1] -->
   <arg name="global_guide" default="false"/>     <!-- [CD1] -->
@@ -190,6 +197,8 @@
     <arg name="dyn_dv" value="$(arg dyn_dv)"/>
     <arg name="dyn_unc_acc" value="$(arg dyn_unc_acc)"/>
     <arg name="dyn_unc_max" value="$(arg dyn_unc_max)"/>
+    <arg name="dyn_unc_iso" value="$(arg dyn_unc_iso)"/>
+    <arg name="dyn_reflect_both" value="$(arg dyn_reflect_both)"/>
     <arg name="dyn_slow_vel" value="$(arg dyn_slow_vel)"/>
     <arg name="keep_memory" value="$(arg keep_memory)"/>
     <arg name="global_guide" value="$(arg global_guide)"/>
@@ -244,6 +253,10 @@
     <arg name="dyn_spd_tmin" value="$(arg dyn_spd_tmin)"/>
     <arg name="dyn_spd_tmax" value="$(arg dyn_spd_tmax)"/>
     <arg name="dyn_spd_acc" value="$(arg dyn_spd_acc)"/>
+    <arg name="dyn_var_dir" value="$(arg dyn_var_dir)"/>
+    <arg name="dyn_dir_tmin" value="$(arg dyn_dir_tmin)"/>
+    <arg name="dyn_dir_tmax" value="$(arg dyn_dir_tmax)"/>
+    <arg name="dyn_dir_acc" value="$(arg dyn_dir_acc)"/>
     <arg name="p_hmin" value="$(arg p_hmin)"/>
     <arg name="init_x" value="$(arg init_x)"/>
     <arg name="init_y" value="$(arg init_y)"/>

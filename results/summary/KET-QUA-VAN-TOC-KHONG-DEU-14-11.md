@@ -76,7 +76,7 @@ k6 tách riêng: trong nhà η +0,009 (p 0,0015), T_f +0,27 s (p 0,008); ngoài 
 - 14/11 chọn cách B: MỘT cấu hình (KU) cho cả vận tốc đều và không đều; k5 là phép đo KU ở vận tốc đều.
 - k5: OUT hạt 32 nghiêng 30,9° (vẫn an toàn, 0,51 m), chưa phân tích.
 - 16/11 đợt k6 đo KU ở vận tốc đều trên hạt 11–20 / 41–80: 120/120. OUT hạt 61 nghiêng 30,8° (vẫn an toàn, 0,428 m), chưa phân tích; A* thất bại 10 lần ở 3 lượt ngoài trời (f9: 0 lần).
-- CHƯA thử vật cản đổi hướng bất kỳ.
+- Vật cản đổi hướng bất kỳ (16–17/11): xem `KET-QUA-VAT-CAN-DOI-HUONG-17-11.md`.
 - Mã của ngày 13–14/11 đã commit ở 9a15038.
 
 ## Dữ liệu
